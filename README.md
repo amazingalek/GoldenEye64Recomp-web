@@ -37,10 +37,12 @@ ROM you load, so the launcher takes the retail dump as it is.
   credits, the menus, and Dam walked on the keyboard, at the game's 60 retraces a second, with sound on the browser's
   audio thread (about 2% of its frames came up short there, on a busy host). No real gamepad and no other browser
   tried.
-- The page builds the game's shaders before it starts, under "Preparing graphics" (the 340 in
-  `src/rt64_shaders.txt`, recorded from the intro, the menus and the first five levels), so weak graphics never draw
-  them with RT64's slow general shader. In Chrome that took about 85 s on every visit (2026-10-12, RTX 2070, busy
-  host). A shader not on the list draws with the general one until it is built.
+- The page builds the game's shaders (the 340 in `src/rt64_shaders.txt`, recorded from the intro, the menus and the
+  first five levels), so weak graphics don't draw them with RT64's slow general shader: the 34 the intro and the file
+  select draw before the game starts, under "Preparing graphics", and the rest behind it, in the order the game first
+  asked for them, any it asks for first. In Chrome the wait is about 10 s on every visit, against 84-87 s for all 340
+  (2026-10-12, RTX 2070, busy host); the rest were built about 5 minutes later. Firefox waits for all of them. A
+  shader not yet built draws with the general one.
 - Mods a player adds are off on the web (there is no recompiler that emits WebAssembly at run time); natively they
   are supported but untested.
 - cblock85's run-time recompilation of the game from the ROM (`LiveGamecode`) is gone: RecompFrontend's launcher
