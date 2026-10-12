@@ -24,12 +24,13 @@ if (APPLE)
     enable_language(OBJC OBJCXX)
 endif()
 
-# Emscripten: threads (SharedArrayBuffer), wasm exceptions (RmlUi, the runtime) and wasm SIMD (hlslpp's backend, the
-# auto-vectorizer) for every target. xxHash's NEON path through Emscripten's arm_neon.h doesn't compile in C++.
+# Emscripten: threads (SharedArrayBuffer), wasm exceptions (RmlUi, the runtime), wasm SIMD (hlslpp's backend, the
+# auto-vectorizer) and tail calls (recomp.h's RECOMP_TAIL_CALL in the recompiled code) for every target. xxHash's
+# NEON path through Emscripten's arm_neon.h doesn't compile in C++.
 if (EMSCRIPTEN)
-    add_compile_options(-pthread -fwasm-exceptions -msimd128)
+    add_compile_options(-pthread -fwasm-exceptions -msimd128 -mtail-call)
     add_compile_options("-DXXH_HAS_INCLUDE(x)=0")
-    add_link_options(-pthread -fwasm-exceptions)
+    add_link_options(-pthread -fwasm-exceptions -mtail-call)
     # ccache when it is on PATH (BUILDING.md, "The web page").
     include(${CMAKE_SOURCE_DIR}/lib/N64Recomp-browser/frontend/build_speed.cmake)
 endif()
