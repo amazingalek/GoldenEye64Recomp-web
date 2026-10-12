@@ -21,7 +21,7 @@ RECOMP_PATCH void musicTrack1Play(s32 track) __attribute__((optnone)) {
 
     while (alCSPGetState(g_musicXTrack1SeqPlayer)) {
         // @recomp: Yield the thread so it doesn't stall
-        yield_self_1ms();
+        recomp_yield_self_1ms();
     }
 
     romAddress = g_musicDataTable->seqArray[g_musicXTrack1CurrentTrackNum].address;
@@ -69,7 +69,7 @@ RECOMP_PATCH void musicTrack2Play(s32 track) __attribute__((optnone)) {
 
     while (alCSPGetState(g_musicXTrack2SeqPlayer)) {
         // @recomp: Yield the thread so it doesn't stall
-        yield_self_1ms();
+        recomp_yield_self_1ms();
     }
 
     romAddress = g_musicDataTable->seqArray[g_musicXTrack2CurrentTrackNum].address;
@@ -117,7 +117,7 @@ RECOMP_PATCH void musicTrack3Play(s32 track) __attribute__((optnone)) {
 
     while (alCSPGetState(g_musicXTrack3SeqPlayer)) {
         // @recomp: Yield the thread so it doesn't stall
-        yield_self_1ms();
+        recomp_yield_self_1ms();
     }
 
     romAddress = g_musicDataTable->seqArray[g_musicXTrack3CurrentTrackNum].address;

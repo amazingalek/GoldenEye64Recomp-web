@@ -388,69 +388,8 @@ RECOMP_PATCH void bondviewMovePlayerUpdateViewport(s8 stick_x, s8 stick_y, u16 b
 
 #if 1
 
-long strtol(const char* nptr, char** endptr, int base) {
-    const char* s = nptr;
-    long result = 0;
-    int sign = 1;
-
-    // Skip leading whitespace manually
-    while (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\v' || *s == '\f' || *s == '\r') {
-        s++;
-    }
-
-    // Handle optional sign
-    if (*s == '-') {
-        sign = -1;
-        s++;
-    } else if (*s == '+') {
-        s++;
-    }
-
-    // Auto-detect base if needed
-    if (base == 0) {
-        if (*s == '0') {
-            if (s[1] == 'x' || s[1] == 'X') {
-                base = 16;
-                s += 2;
-            } else {
-                base = 8;
-                s++;
-            }
-        } else {
-            base = 10;
-        }
-    } else if (base == 16 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
-        s += 2;
-    }
-
-    const char* start = s;
-
-    while (*s) {
-        int digit;
-
-        if (*s >= '0' && *s <= '9') {
-            digit = *s - '0';
-        } else if (*s >= 'a' && *s <= 'z') {
-            digit = *s - 'a' + 10;
-        } else if (*s >= 'A' && *s <= 'Z') {
-            digit = *s - 'A' + 10;
-        } else {
-            break;
-        }
-
-        if (digit >= base)
-            break;
-
-        result = result * base + digit;
-        s++;
-    }
-
-    if (endptr) {
-        *endptr = (s == start) ? (char*) nptr : (char*) s;
-    }
-
-    return sign * result;
-}
+// strtol is the game's own (externs.h): a copy here has the name of a function in the ROM, which N64Recomp's strict
+// patch mode refuses unless it is marked as a replacement.
 
 #define BASE_FPS 60
 static int desiredFPS = 30;
@@ -652,7 +591,6 @@ RECOMP_PATCH void bossMainloop(void) {
                             joyConsumeSamplesWrapper();
                             permit_stderr(0);
                             
-                            recomp_printf("[trace] render start\n");
                             gdl = firstGdl = dynGetMasterDisplayList();
 
                             gEXEnable(gdl++); // @theboy181 - better place for this 
@@ -772,7 +710,6 @@ RECOMP_PATCH void bossMainloop(void) {
                             }
 
                             rspReplyMsg = (s32) (&localGfxDoneMsg);
-                            recomp_printf("[trace] submitting gfx task %p..%p\n", firstGdl, gdl);
                             rspGfxTaskStart(firstGdl, gdl, 0, (s32*) rspReplyMsg);
 
                             pendingGfx++;
@@ -1522,16 +1459,6 @@ RECOMP_PATCH void __scMain(void *arg) {
 
     while (!done) {
         osRecvMesg((OSMesgQueue *) (sc + 0x40), &msg, OS_MESG_BLOCK);
-        {
-            static int n = 0;
-            u32 rsp = *(u32 *) (sc + 0xC8);
-            u32 rdp = *(u32 *) (sc + 0xCC);
-            u32 gfxhead = *(u32 *) (sc + 0xBC);
-            n++;
-            if ((s32) msg != 666 || (n % 240) == 0) {
-                recomp_printf("[sc] msg=%d rsp=%08X rdp=%08X gfxq=%08X\n", (s32) msg, rsp, rdp, gfxhead);
-            }
-        }
         switch ((s32) msg) {
             case 666: __scHandleRetrace(arg); break;
             case 667: __scHandleRSP(arg); break;

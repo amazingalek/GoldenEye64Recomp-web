@@ -2,15 +2,10 @@
 
 #include "recomp.h"
 #include "librecomp/overlays.hpp"
-#include "zelda_config.h"
-#include "recomp_input.h"
-#include "recomp_ui.h"
-#include "zelda_render.h"
-#include "zelda_sound.h"
+#include "recompinput/recompinput.h"
+#include "recompui/recompui.h"
+#include "recompui/renderer.h"
 #include "librecomp/helpers.hpp"
-// #include "../patches/input.h"
-// #include "../patches/graphics.h"
-// #include "../patches/sound.h"
 #include "ultramodern/ultramodern.hpp"
 #include "ultramodern/config.hpp"
 #include "librecomp/game.hpp"
@@ -40,15 +35,7 @@ extern "C" void osPfsInit_recomp(uint8_t* rdram, recomp_context* ctx) {
     // Empty
 }
 
-// TODO: Validate this
-extern "C" void __f_to_ll_recomp(uint8_t* rdram, recomp_context* ctx) {
-    float input = ctx->f12.fl;
-
-    int64_t result = (int64_t) input;
-
-    ctx->r2 = (int32_t) (result >> 32); // Signed high part
-    ctx->r3 = (int32_t) (result >> 0);  // Low part as unsigned
-}
+// __f_to_ll_recomp and __ll_lshift_recomp are librecomp's (math_routines.cpp).
 
 // TODO: Validate this
 extern "C" void __ll_to_d_recomp(uint8_t* rdram, recomp_context* ctx) {
@@ -60,20 +47,18 @@ extern "C" void __ll_to_d_recomp(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void recomp_update_inputs(uint8_t* rdram, recomp_context* ctx) {
-    recomp::poll_inputs();
+    recompinput::poll_inputs();
+}
+
+// The patches' audio loops yield through this: ultramodern's yield_self_1ms takes rdram alone, and WebAssembly traps
+// on a call whose signature doesn't match the callee.
+extern "C" void yield_self_1ms(uint8_t* rdram);
+extern "C" void recomp_yield_self_1ms(uint8_t* rdram, recomp_context* ctx) {
+    yield_self_1ms(rdram);
 }
 
 extern "C" void rmonPrintf_recomp(uint8_t* rdram, recomp_context* ctx) {
     // Empty
-}
-
-extern "C" void __ll_lshift_recomp(uint8_t* rdram, recomp_context* ctx) {
-    int64_t a = (ctx->r4 << 32) | ((ctx->r5 << 0) & 0xFFFFFFFFu);
-    int64_t b = (ctx->r6 << 32) | ((ctx->r7 << 0) & 0xFFFFFFFFu);
-    int64_t ret = a << b;
-
-    ctx->r2 = (int32_t) (ret >> 32);
-    ctx->r3 = (int32_t) (ret >> 0);
 }
 
 extern "C" void __ll_rshift_recomp(uint8_t* rdram, recomp_context* ctx) {
@@ -102,14 +87,14 @@ extern "C" void recomp_get_gyro_deltas(uint8_t* rdram, recomp_context* ctx) {
     float* x_out = _arg<0, float*>(rdram, ctx);
     float* y_out = _arg<1, float*>(rdram, ctx);
 
-    recomp::get_gyro_deltas(x_out, y_out);
+    recompinput::get_gyro_deltas(0, x_out, y_out);
 }
 
 extern "C" void recomp_get_mouse_deltas(uint8_t* rdram, recomp_context* ctx) {
     float* x_out = _arg<0, float*>(rdram, ctx);
     float* y_out = _arg<1, float*>(rdram, ctx);
 
-    recomp::get_mouse_deltas(x_out, y_out);
+    recompinput::get_mouse_deltas(x_out, y_out);
 }
 
 extern "C" void recomp_powf(uint8_t* rdram, recomp_context* ctx) {
@@ -143,23 +128,23 @@ extern "C" void recomp_get_aspect_ratio(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void recomp_get_targeting_mode(uint8_t* rdram, recomp_context* ctx) {
-    _return(ctx, static_cast<int>(zelda64::get_targeting_mode()));
+    _return(ctx, 0);
 }
 
 extern "C" void recomp_get_bgm_volume(uint8_t* rdram, recomp_context* ctx) {
-    _return(ctx, zelda64::get_bgm_volume() / 100.0f);
+    _return(ctx, 1.0f);
 }
 
 extern "C" void recomp_get_sfx_volume(uint8_t* rdram, recomp_context* ctx) {
-    _return(ctx, zelda64::get_sfx_volume() / 100.0f);
+    _return(ctx, 1.0f);
 }
 
 extern "C" void recomp_get_voice_volume(uint8_t* rdram, recomp_context* ctx) {
-    _return(ctx, zelda64::get_voice_volume() / 100.0f);
+    _return(ctx, 1.0f);
 }
 
 extern "C" void recomp_get_low_health_beeps_enabled(uint8_t* rdram, recomp_context* ctx) {
-    _return(ctx, static_cast<u32>(zelda64::get_low_health_beeps_enabled()));
+    _return(ctx, 1u);
 }
 
 extern "C" void recomp_time_us(uint8_t* rdram, recomp_context* ctx) {
@@ -168,7 +153,7 @@ extern "C" void recomp_time_us(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void recomp_autosave_enabled(uint8_t* rdram, recomp_context* ctx) {
-    _return(ctx, static_cast<s32>(zelda64::get_autosave_mode() == zelda64::AutosaveMode::On));
+    _return(ctx, 0);
 }
 
 extern "C" void recomp_load_overlays(uint8_t* rdram, recomp_context* ctx) {
@@ -180,7 +165,7 @@ extern "C" void recomp_load_overlays(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void recomp_high_precision_fb_enabled(uint8_t* rdram, recomp_context* ctx) {
-    _return(ctx, static_cast<s32>(zelda64::renderer::RT64HighPrecisionFBEnabled()));
+    _return(ctx, static_cast<s32>(recompui::renderer::RT64HighPrecisionFBEnabled()));
 }
 
 extern "C" void recomp_get_resolution_scale(uint8_t* rdram, recomp_context* ctx) {
@@ -191,24 +176,20 @@ extern "C" void recomp_get_inverted_axes(uint8_t* rdram, recomp_context* ctx) {
     s32* x_out = _arg<0, s32*>(rdram, ctx);
     s32* y_out = _arg<1, s32*>(rdram, ctx);
 
-    zelda64::CameraInvertMode mode = zelda64::get_camera_invert_mode();
-
-    *x_out = (mode == zelda64::CameraInvertMode::InvertX || mode == zelda64::CameraInvertMode::InvertBoth);
-    *y_out = (mode == zelda64::CameraInvertMode::InvertY || mode == zelda64::CameraInvertMode::InvertBoth);
+    *x_out = 0;
+    *y_out = 0;
 }
 
 extern "C" void recomp_get_analog_inverted_axes(uint8_t* rdram, recomp_context* ctx) {
     s32* x_out = _arg<0, s32*>(rdram, ctx);
     s32* y_out = _arg<1, s32*>(rdram, ctx);
 
-    zelda64::CameraInvertMode mode = zelda64::get_analog_camera_invert_mode();
-
-    *x_out = (mode == zelda64::CameraInvertMode::InvertX || mode == zelda64::CameraInvertMode::InvertBoth);
-    *y_out = (mode == zelda64::CameraInvertMode::InvertY || mode == zelda64::CameraInvertMode::InvertBoth);
+    *x_out = 0;
+    *y_out = 0;
 }
 
 extern "C" void recomp_analog_cam_enabled(uint8_t* rdram, recomp_context* ctx) {
-    _return<s32>(ctx, zelda64::get_analog_cam_mode() == zelda64::AnalogCamMode::On);
+    _return<s32>(ctx, 0);
 }
 
 extern "C" void recomp_get_camera_inputs(uint8_t* rdram, recomp_context* ctx) {
@@ -220,7 +201,7 @@ extern "C" void recomp_get_camera_inputs(uint8_t* rdram, recomp_context* ctx) {
 
     float x, y;
 
-    recomp::get_right_analog(&x, &y);
+    recompinput::get_right_analog(0, &x, &y);
 
     float magnitude = sqrtf(x * x + y * y);
 
@@ -239,5 +220,5 @@ extern "C" void recomp_get_camera_inputs(uint8_t* rdram, recomp_context* ctx) {
 extern "C" void recomp_set_right_analog_suppressed(uint8_t* rdram, recomp_context* ctx) {
     s32 suppressed = _arg<0, s32>(rdram, ctx);
 
-    recomp::set_right_analog_suppressed(suppressed);
+    recompinput::set_right_analog_suppressed(suppressed);
 }

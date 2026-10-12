@@ -1,4 +1,4 @@
-# Config file for recompiling patches for the Majora's Mask NTSC 1.0 Recompilation.
+# Config file for recompiling the patches of the GoldenEye 007 NTSC-U recompilation.
 
 [input]
 # Paths are relative to the location of this config file.
@@ -20,4 +20,9 @@ output_binary_path = "patches/patches.bin"
 # Do not emit warnings for unpaired LO16 values, as clang produces many of them.
 unpaired_lo16_warnings = false
 
+allow_exports = true
 strict_patch_mode = true
+
+[patches]
+# As in us.toml, so that the patches' calls to them reach them.
+renamed = ["strtol", "acos", "asin", "strncmp", "strncpy", "isalpha", "isdigit", "isspace", "toupper"]

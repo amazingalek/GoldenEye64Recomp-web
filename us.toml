@@ -18,6 +18,9 @@ function_sizes = [
 ]
 
 [patches]
+# The game's own functions with C library names clash with the library's declarations: they become <name>_recomp.
+renamed = ["strtol", "acos", "asin", "strncmp", "strncpy", "isalpha", "isdigit", "isspace", "toupper"]
+
 stubs = [
     "tlbRandomGetNext",
     # TLBFREE build: TLB machinery is dead code

@@ -1226,7 +1226,9 @@ functions = [
     { name = "init_menu03_gunbarrel", vram = 0x8040B154, size = 0x3C },
     { name = "get_ptr_item_statistics", vram = 0x8045C8B4, size = 0x3C },
     { name = "draw_background_health_and_armor", vram = 0x804A714C, size = 0x65C },
-    { name = "cosf", vram = 0x80457EA0, size = 0xC },
+    # cosf adds pi/2 and falls through into sinf (0x80457EAC, 0x120 bytes), so its body takes in sinf's:
+    # recompiled at 0xC, cosf would return without a result.
+    { name = "cosf", vram = 0x80457EA0, size = 0x12C },
     { name = "bondinvGetItemByIndex", vram = 0x8048D108, size = 0x114 },
     { name = "constructor_menu11_mpcontrol", vram = 0x80413980, size = 0x3F8 },
     { name = "set_vtxallocator", vram = 0x8046C460, size = 0xC },

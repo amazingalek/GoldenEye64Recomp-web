@@ -89,3 +89,21 @@ patches/patches.bin
 shadercache/
 *.app/
 .DS_Store
+
+# Logs of local runs
+*.log
+
+# What a local run leaves beside a portable.txt
+portable.txt
+/*.json
+/*.json.bak
+!/CMakeSettings.json
+!/launch.vs.json
+saves/
+mods/
+mod_config/
+/N64Recomp.exe
+/RSPRecomp.exe
+/OfflineModRecomp.exe
+/build*/
+RecompiledPatches/

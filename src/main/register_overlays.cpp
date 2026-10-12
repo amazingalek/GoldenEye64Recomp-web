@@ -1,13 +1,9 @@
-#include "ovl_patches.hpp"
-#ifdef GE_LIVE_GAMECODE
-#include "../../LiveGamecode/recomp_overlays.inl"
-#else
+#include "goldeneye.h"
 #include "../../RecompiledFuncs/recomp_overlays.inl"
-#endif
 
 #include "librecomp/overlays.hpp"
 
-void zelda64::register_overlays() {
+void goldeneye::register_overlays() {
     recomp::overlays::overlay_section_table_data_t sections {
         .code_sections = section_table,
         .num_code_sections = ARRLEN(section_table),
