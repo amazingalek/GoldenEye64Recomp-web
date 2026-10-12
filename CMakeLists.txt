@@ -33,6 +33,9 @@ if (EMSCRIPTEN)
     add_link_options(-pthread -fwasm-exceptions -mtail-call)
     # ccache when it is on PATH (BUILDING.md, "The web page").
     include(${CMAKE_SOURCE_DIR}/lib/N64Recomp-browser/frontend/build_speed.cmake)
+    # The shaders the page specializes at build time and builds before the game starts (src/rt64_shaders.txt says
+    # why and how it was recorded).
+    set(RT64_PREBUILT_SHADER_LIST ${CMAKE_SOURCE_DIR}/src/rt64_shaders.txt)
 endif()
 
 if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
