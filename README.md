@@ -9,9 +9,9 @@
 > nothing here is offered upstream, and please don't take issues with this fork to them. Building it:
 > [BUILDING.md](BUILDING.md).
 
-**Play it in the browser: https://amazingalek.github.io/GoldenEye64Recomp-web/** with your own ROM, picked in the launcher and kept in the browser. It needs
-WebGPU (Chrome or Edge 113 and up). The page is built from this branch where the ROM is and published with
-N64Recomp-browser's `tools/publish_page.sh`, so it can be a commit or two behind.
+**Play it in the browser: https://amazingalek.github.io/GoldenEye64Recomp-web/**, with your own ROM, picked in the
+launcher and kept in the browser. It needs WebGPU (Chrome or Edge 113 and up). The page is built from this branch
+where the ROM is and published with N64Recomp-browser's `tools/publish_page.sh`, so it can be a commit or two behind.
 
 GoldenEye 007 (N64, NTSC-U) statically recompiled with [N64Recomp](https://github.com/N64Recomp/N64Recomp) into C,
 run by [N64ModernRuntime](https://github.com/N64Recomp/N64ModernRuntime) and drawn by [RT64](https://github.com/rt64/rt64),
