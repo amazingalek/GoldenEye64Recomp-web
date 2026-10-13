@@ -9,11 +9,13 @@
   "",
   "Recorded by code, not by playing: bash tools/record_shaders.sh (its header says how) runs N64Recomp-browser's",
   "tools/record_shaders.mjs with tools/shader_plan.json, which loads the page fresh for each section and has",
-  "patches/shader_survey.c show each menu and start each level. Section 0 is the launcher, the intro, the title, the",
-  "menus, a mission's briefing and its report; then a section a level, from its opening cutscene to a few seconds in,",
-  "walking, turning, firing and opening the watch. Not recorded: the multiplayer levels, and what a level draws",
-  "further in that its start doesn't (RT64 builds those when the game first asks for them). Flags follow settings",
-  "(filtering, HDR, MSAA, upscaling), so a change to one of those defaults means recording again."
+  "patches/shader_survey.c show each menu and start each level. Section 0 is the launcher, the boot as it plays by",
+  "itself until the first attract demo (the logos, the cast credits, the gun barrel and the title: later rounds of",
+  "the cast draw nothing new), the menus, a mission's briefing and its report; then a section a level, from its",
+  "opening cutscene to a few seconds in, walking, turning, firing and opening the watch. Not recorded: the",
+  "multiplayer levels, the attract demos, and what a level draws further in that its start doesn't (RT64 builds",
+  "those when the game first asks for them). Flags follow settings (filtering, HDR, MSAA, upscaling), so a change to",
+  "one of those defaults means recording again."
  ],
  "load": [
   [
@@ -23,7 +25,7 @@
   ],
   [
    "wait",
-   4000
+   10000
   ]
  ],
  "setup": [
@@ -39,10 +41,9 @@
  ],
  "start": [
   [
-   "key",
-   "Enter",
-   "Enter",
-   13
+   "click",
+   628,
+   364
   ],
   [
    "until",
@@ -55,6 +56,20 @@
   ]
  ],
  "sections": [
+  {
+   "name": "intro and credits",
+   "boot": true,
+   "steps": [
+    [
+     "evalFile",
+     "shader_survey.js"
+    ],
+    [
+     "eval",
+     "untilStageLeaves(90, 240000)"
+    ]
+   ]
+  },
   {
    "name": "menus",
    "boot": true,

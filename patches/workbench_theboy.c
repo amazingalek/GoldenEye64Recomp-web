@@ -563,7 +563,6 @@ RECOMP_PATCH void bossMainloop(void) {
 
             switch (localGfxFrameMsg->gen.type) {
                 case (OS_SC_RETRACE_MSG): {
-                    { static int rc=0; if ((rc++ % 120)==0) recomp_printf("[trace] retrace#%d stage=%d pending=%d demo=%d sgf=%d\n", rc, g_MainStageNum, pendingGfx, demoMode, speedgraphframes); }
 #ifdef DEBUG
                     /* debug logging from simple.c, I think this requires #include <ultralog.h>
                      * //    if (logging)
@@ -575,7 +574,6 @@ RECOMP_PATCH void bossMainloop(void) {
                     if ((demoMode == 1 && mainTickElapsed < (MAIN_LOOP_TICK_INTERVAL * (speedgraphframes * 2))) ||
                     (demoMode != 1 && mainTickElapsed < MAIN_LOOP_TICK_INTERVAL)) 
                     {
-                        { static int sk=0; if ((sk++ % 120)==0) recomp_printf("[trace] skip#%d elapsed=%d interval=%d\n", sk, mainTickElapsed, MAIN_LOOP_TICK_INTERVAL); }
                         break; // Skip frame
                     } else {
                         if (g_MainStageNum < 0 && pendingGfx < 2U) {
