@@ -11,7 +11,7 @@
 
 **Play it in the browser: https://amazingalek.github.io/GoldenEye64Recomp-web/**, with your own ROM, picked in the
 launcher and kept in the browser. It needs WebGPU (Chrome or Edge 113 and up). The page is built from this branch
-where the ROM is and published with N64Recomp-browser's `tools/publish_page.sh`, so it can be a commit or two behind.
+and published with N64Recomp-browser's `tools/publish_page.sh`, so it can be a commit or two behind.
 
 GoldenEye 007 (N64, NTSC-U) statically recompiled with [N64Recomp](https://github.com/N64Recomp/N64Recomp) into C,
 run by [N64ModernRuntime](https://github.com/N64Recomp/N64ModernRuntime) and drawn by [RT64](https://github.com/rt64/rt64),
@@ -35,7 +35,7 @@ ROM you load, so the launcher takes the retail dump as it is.
 - Native (Windows, clang-cl): the launcher, the gun-barrel intro and the attract demo.
 - The page, in headless Chrome (2026-10-12): the launcher, Load ROM with the retail dump, the intro and its
   credits, the menus, and Dam walked on the keyboard, at the game's 60 retraces a second, with sound on the browser's
-  audio thread (about 2% of its frames came up short there, on a busy host). No real gamepad and no other browser
+  audio thread (about 2% of its frames came up short there, under heavy CPU load). No real gamepad and no other browser
   tried.
 - The page builds the game's shaders before it draws with them, so weak graphics don't draw with RT64's slow general
   shader: the 455 in `src/rt64_shaders.txt`, recorded by a script that shows every menu and starts every level
