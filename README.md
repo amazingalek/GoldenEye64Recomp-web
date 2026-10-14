@@ -58,13 +58,21 @@ ROM you load, so the launcher takes the retail dump as it is.
   (`get_frames_remaining` in `src/main/main.cpp` says why); since main 59dc8e8 it writes 48,000 frames a second and
   plays without a gap between the boot's shader wait and its first burst. A/B on 2026-10-14, the same canvas, a cold
   profile each, an idle host: frames short per 5 s from 4,800 to 0 in both browsers outside the bursts; Firefox 158
-  161k short in 45 s before, 136k after. What is left: in Firefox about 0.4 s at a few fixed moments of the boot, and
+  161k short in 45 s before, 136k after. What was left then: in Firefox about 0.4 s at a few fixed moments of the boot, and
   in Chrome, in some cold runs before and after, ~20% for ~40 s while the shader list builds behind the game.
   On the page built on N64Recomp-browser ed8764a (v0.36.0, main 0ceb0be), 2026-10-14, the same canvas, an idle host,
   one page at a time, the boot, the credits and the attract demo's Runway: Firefox 158 waited 8.4 s and then drew 60
   through the boot and the credits, about 0.4 s of sound short three times, then waited 12.6 s for Runway and drew
   44-51 there; Chrome 155 never waited and drew 45-60 until all 202 were built at 65 s, 2.7 s of sound short meanwhile,
   then 60. rt64's pacing never switched on.
+  Those bursts and Chrome's 20% were the main loop's wait for its next tick (`patches/fps.c`), which polled the count
+  without an OS call: on the console the scheduler and the audio thread preempt it, and here they waited behind it.
+  The intro's copy of it waits as long as the frame before took, so one slow frame (a shader built behind the game, a
+  load) held every frame of the intro to that length, the main thread polling 85% of the time, ~1.5 million counts a
+  second, and the audio thread getting in every ~85 ms instead of 33. Each poll yields now. Local builds on
+  N64Recomp-browser b1c35d1, with and without that, 2026-10-14, a cold profile each, alone on the GPU: Chrome 155
+  headless at 1256x645, 0 frames short in 85 s in each of three runs, against 630k (~20% for ~40 s) without it;
+  Firefox 158 at 3840x2000, 0 short in 95 s, against 27k, 67k and 28k in three 5 s windows.
 - The page builds the game's shaders before it draws with them, so weak graphics don't draw with RT64's slow general
   shader: the 465 in `src/rt64_shaders.txt`, recorded by a script that plays the intro and the credits, shows every
   menu and starts every level (`tools/record_shaders.sh`), are built a part at a time with the game waiting under
