@@ -8,6 +8,9 @@
 > was written by AI (Claude). It is not made, endorsed or supported by GoldenEye64Recomp's or GoldenRecomp's authors:
 > nothing here is offered upstream, and please don't take issues with this fork to them. Building it:
 > [BUILDING.md](BUILDING.md).
+>
+> This port is here to build out and test N64Recomp-browser's web support on another game than the one it was written
+> for: what it turns up is fixed there where it can be, so every recomp's page gets the fix.
 
 **Play it in the browser: https://amazingalek.github.io/GoldenEye64Recomp-web/**, with your own ROM, picked in the
 launcher and kept in the browser. It needs WebGPU (Chrome or Edge 113 and up). The page is built from this branch
