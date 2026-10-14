@@ -160,6 +160,9 @@ static uint32_t discarded_output_frames;
 
 constexpr uint32_t bytes_per_frame = input_channels * sizeof(float);
 
+// The size of the buffer queued last, in output bytes (get_frames_remaining).
+static uint64_t last_queued_bytes = 0;
+
 // On a page, sound plays through N64Recomp-browser's AudioWorklet output (audio_output.h) instead of SDL's queue:
 // Emscripten's SDL2 plays from the page's thread, where WebGPU's work runs, and its sound broke up whenever that
 // thread was busy.
@@ -215,7 +218,7 @@ void queue_samples(int16_t* audio_data, size_t sample_count) {
         throw std::runtime_error("Error using SDL audio converter");
     }
 
-    uint64_t cur_queued_microseconds = get_queued_audio_bytes() / bytes_per_frame * 1000000 / sample_rate;
+    uint64_t cur_queued_microseconds = get_queued_audio_bytes() / (output_channels * sizeof(float)) * 1000000 / output_sample_rate;
     uint32_t num_bytes_to_queue = audio_convert.len_cvt - output_channels * discarded_output_frames * sizeof(swap_buffer[0]);
     float* samples_to_queue = swap_buffer.data() + output_channels * discarded_output_frames / 2;
 
@@ -231,11 +234,20 @@ void queue_samples(int16_t* audio_data, size_t sample_count) {
     }
 
     queue_audio(samples_to_queue, num_bytes_to_queue);
+    last_queued_bytes = num_bytes_to_queue;
 }
 
+// What osAiGetLength reads: the frames left of the buffer playing. On the console that is the one buffer, with the
+// one queued after it waiting in the AI's FIFO, and the game (amHandleFrameMessage) queues its last buffer just before
+// it asks, then makes the next one 736 frames plus what it thinks is missing. So the buffer queued last isn't counted
+// while an earlier one still plays: counted, the game always thought itself ahead and made every buffer its minimum,
+// 720 frames for the 735 that play in two retraces, and the sound ran dry 2% of the time.
 size_t get_frames_remaining() {
     constexpr float buffer_offset_frames = 1.0f;
     uint64_t buffered_byte_count = get_queued_audio_bytes();
+    if (buffered_byte_count > last_queued_bytes) {
+        buffered_byte_count -= last_queued_bytes;
+    }
     buffered_byte_count = buffered_byte_count * 2 * sample_rate / output_sample_rate / output_channels;
     uint32_t frames_per_vi = (sample_rate / 60);
     if (buffered_byte_count > (buffer_offset_frames * bytes_per_frame * frames_per_vi)) {
