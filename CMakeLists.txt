@@ -53,6 +53,13 @@ if (WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     add_compile_definitions(__PRFCHWINTRIN_H)
 endif()
 
+# lib/rt64, lib/N64ModernRuntime and lib/RecompFrontend are upstream's, at the commits N64Recomp-browser's web forks
+# are built on, with its patches/ applied, if BUILDING.md's step hasn't already. The desktop build needs them too: the
+# patched N64Recomp reads GoldenEye's jump tables from their own section and renames its strtol and the rest in the
+# patches' calls, and the code it writes uses the patched recomp.h (RECOMP_TAIL_CALL).
+include(${CMAKE_SOURCE_DIR}/lib/N64Recomp-browser/patches/apply.cmake)
+n64recomp_browser_apply_patches(${CMAKE_SOURCE_DIR}/lib)
+
 add_subdirectory(${CMAKE_SOURCE_DIR}/lib/rt64 ${CMAKE_BINARY_DIR}/rt64)
 
 set(BUILD_SHARED_LIBS OFF)

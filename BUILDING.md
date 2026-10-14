@@ -10,8 +10,11 @@ memory (`src/main/rom_conversion.cpp`).
 git clone --recurse-submodules https://github.com/amazingalek/GoldenEye64Recomp-web
 ```
 
-`lib/` holds the web forks of RT64, N64ModernRuntime (with N64Recomp) and RecompFrontend, N64Recomp-browser (the page's
-frontend) and the GoldenEye decompilation (`lib/ge`, whose headers the patches use).
+`lib/` holds RT64, N64ModernRuntime (with N64Recomp) and RecompFrontend from their upstream repositories, at the
+commits [N64Recomp-browser](https://github.com/amazingalek/N64Recomp-browser)'s web forks are built on (GoldenEye64Recomp
+itself predates RecompFrontend, so it pins none of its own); N64Recomp-browser, whose `patches/` puts the web support
+and the recompiler changes this game needs into their checkouts and whose `frontend/` makes the page; and the
+GoldenEye decompilation (`lib/ge`, whose headers the patches use).
 
 ## 2. Tools
 
@@ -27,7 +30,10 @@ frontend) and the GoldenEye decompilation (`lib/ge`, whose headers the patches u
 ```bash
 xdelta3 -d -s baserom.u.z64 vanilla_to_tlbfree.xdelta ge007.tlbfree.z64   # your dump as baserom.u.z64
 
-# N64Recomp and RSPRecomp, from the N64Recomp in lib/
+# N64Recomp-browser's patches in lib/rt64, lib/N64ModernRuntime and lib/RecompFrontend
+cmake -P lib/N64Recomp-browser/patches/apply.cmake lib
+
+# N64Recomp and RSPRecomp, from the patched N64Recomp in lib/
 cmake -S lib/N64ModernRuntime/N64Recomp -B build-n64recomp -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build-n64recomp --target N64RecompCLI RSPRecomp
 cp build-n64recomp/N64Recomp build-n64recomp/RSPRecomp .                  # .exe on Windows
@@ -35,6 +41,12 @@ cp build-n64recomp/N64Recomp build-n64recomp/RSPRecomp .                  # .exe
 ./N64Recomp us.toml            # RecompiledFuncs/
 ./RSPRecomp aspMain.us.toml    # rsp/aspMain.cpp
 ```
+
+The native program needs the patches as much as the page does: the patched N64Recomp reads GoldenEye's jump tables
+from the `.rodata` section that holds them and renames its own `strtol` and the rest in the patches' calls, and the
+code it writes uses the patched `recomp.h`. The web support in them is behind `__EMSCRIPTEN__` and changes nothing
+natively. Configuring the program (step 4, or the page) applies them too if they aren't in yet, and does nothing if
+they are; `git apply --reverse lib/N64Recomp-browser/patches/<name>.patch` in a checkout takes one out.
 
 The build recompiles the patches itself (`./N64Recomp patches.toml`, after `make` in `patches/`).
 

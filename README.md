@@ -18,7 +18,8 @@ run by [N64ModernRuntime](https://github.com/N64Recomp/N64ModernRuntime) and dra
 from the [GoldenEye decompilation](https://gitlab.com/kholdfuzion/goldeneye_src). It descends from kholdfuzion's
 [GoldenRecomp](https://github.com/kholdfuzion/goldenrecomp) (Windows) through cblock85's GoldenEye64Recomp (macOS
 and Linux). This fork builds as a native program (checked on Windows) and as a page that runs in a browser with
-WebGPU, both with RecompFrontend's launcher and menus, on the web forks N64Recomp-browser's `forks.txt` names.
+WebGPU, both with RecompFrontend's launcher and menus, on upstream RT64, N64ModernRuntime and RecompFrontend at the
+commits N64Recomp-browser's web forks are built on, with its `patches/` applied (BUILDING.md).
 
 ## No Nintendo assets
 
