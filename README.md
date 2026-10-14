@@ -48,6 +48,9 @@ ROM you load, so the launcher takes the retail dump as it is.
   10% short; in another, alone on the GPU, it presented 171 a second for 5 s as the wait ended, the GPU's memory up
   3.5 GB, then logged "Out of Memory" and drew 22-30 (Firefox's animation frames come in bursts there, which the page
   reads as a faster display).
+  On the page built on N64Recomp-browser b1c35d1 (main 97f81af), 2026-10-14, the same canvas, an idle host, one page
+  at a time: Firefox 158 waited 8.4 s and then drew 58-60, the memory flat, 8% of the sound short; Chrome 155 never
+  waited and drew 52-56, 8% short.
 - The page builds the game's shaders before it draws with them, so weak graphics don't draw with RT64's slow general
   shader: the 465 in `src/rt64_shaders.txt`, recorded by a script that plays the intro and the credits, shows every
   menu and starts every level (`tools/record_shaders.sh`), are built a part at a time with the game waiting under
