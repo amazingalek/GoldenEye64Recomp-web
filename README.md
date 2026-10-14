@@ -45,6 +45,18 @@ ROM you load, so the launcher takes the retail dump as it is.
   5.0 s against the menus' 3.9 s on a busier host; on a later visit 0.3 s and 4.5 s, since Chrome's cache holds
   only part of them. The script records each level's start, so a shader a level draws later is built when it first
   draws, and the page remembers it and builds it with that level on the next visit.
+- Render to RAM stays on: the game reads a frame back 3-33 times a second (up to 120 in some scenes), each read
+  waiting for the GPU. The page copies a frame into RDRAM a display list late (rt64-web 73e9ca0): in Dam 3.8-5.2 ms a
+  list against 8.0-9.7 with the exact copy, the lamps' glare still drawn (headless Chrome 155, RTX 2070, 2026-10-13).
+- Firefox, on a laptop's Intel UHD (scripted first visits, 2026-10-13, before N64Recomp-browser v0.21.0): the
+  intro's blood overlay, whose shaders the first section didn't hold then, drew ~180 draws a frame with RT64's
+  ubershader, which halved the frame rate, and in 3 of 3 runs that reached it the game then fell to about a frame a
+  second for good, each frame waiting on its readback. Firefox looks for finished GPU work only after a submission or
+  every 100 ms, and since v0.21.0 the page submits nothing once a millisecond while a readback waits (rt64-web
+  d070e5c): those runs then kept 28-45 frames a second and a second visit never fell. The first section now holds
+  the intro and the cast credits. On an RTX 2070 slowed by a heavy pass added to every present, d070e5c took Firefox
+  from 33-37 frames a second to 42-45. Firefox builds a section's shaders one at a time and presents nothing
+  meanwhile: the game stood still 23 s for Dam's 55 on a first visit there (RTX 2070).
 - Mods a player adds are off on the web (there is no recompiler that emits WebAssembly at run time); natively they
   are supported but untested.
 - cblock85's run-time recompilation of the game from the ROM (`LiveGamecode`) is gone: RecompFrontend's launcher
