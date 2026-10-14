@@ -54,6 +54,12 @@ ROM you load, so the launcher takes the retail dump as it is.
   On the page built on N64Recomp-browser b1c35d1 (main 97f81af), 2026-10-14, the same canvas, an idle host, one page
   at a time: Firefox 158 waited 8.4 s and then drew 58-60, the memory flat, 8% of the sound short; Chrome 155 never
   waited and drew 52-56, 8% short.
+  About 2% of that, a steady 960 frames a second, was the game's audio manager making every buffer its minimum
+  (`get_frames_remaining` in `src/main/main.cpp` says why); since main 59dc8e8 it writes 48,000 frames a second and
+  plays without a gap between the boot's shader wait and its first burst. A/B on 2026-10-14, the same canvas, a cold
+  profile each, an idle host: frames short per 5 s from 4,800 to 0 in both browsers outside the bursts; Firefox 158
+  161k short in 45 s before, 136k after. What is left: in Firefox about 0.4 s at a few fixed moments of the boot, and
+  in Chrome, in some cold runs before and after, ~20% for ~40 s while the shader list builds behind the game.
 - The page builds the game's shaders before it draws with them, so weak graphics don't draw with RT64's slow general
   shader: the 465 in `src/rt64_shaders.txt`, recorded by a script that plays the intro and the credits, shows every
   menu and starts every level (`tools/record_shaders.sh`), are built a part at a time with the game waiting under
