@@ -36,8 +36,11 @@ ROM you load, so the launcher takes the retail dump as it is.
 - Native (Windows, clang-cl): the launcher, the gun-barrel intro and the attract demo.
 - The page, in headless Chrome (2026-10-12): the launcher, Load ROM with the retail dump, the intro and its
   credits, the menus, and Dam walked on the keyboard, at the game's 60 retraces a second, with sound on the browser's
-  audio thread (about 2% of its frames came up short there, under heavy CPU load). No real gamepad and no other browser
-  tried.
+  audio thread (about 2% of its frames came up short there, under heavy CPU load). No real gamepad tried.
+- Played from the published page (main ea99b09) on 2026-10-14 (RTX 2070, a busy host), built from upstream's commits with
+  N64Recomp-browser's `patches/`: the boot's shaders took 3.5 s in headless Chrome 155 and 9.7 s in Firefox 158,
+  Dam's 7.6 s and 16.3 s, and then Dam walked at 60 frames a second in both, about 2% of the sound short, with no
+  WebGPU errors.
 - The page builds the game's shaders before it draws with them, so weak graphics don't draw with RT64's slow general
   shader: the 465 in `src/rt64_shaders.txt`, recorded by a script that plays the intro and the credits, shows every
   menu and starts every level (`tools/record_shaders.sh`), are built a part at a time with the game waiting under
