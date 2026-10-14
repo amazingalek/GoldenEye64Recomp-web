@@ -65,6 +65,9 @@ ROM you load, so the launcher takes the retail dump as it is.
   through the boot and the credits, about 0.4 s of sound short three times, then waited 12.6 s for Runway and drew
   44-51 there; Chrome 155 never waited and drew 45-60 until all 202 were built at 65 s, 2.7 s of sound short meanwhile,
   then 60. rt64's pacing never switched on.
+  Played again from the page built on N64Recomp-browser 2efc795 (rt64-web 9ed449d, main e8aa16e) on 2026-10-14, on that
+  canvas, a quiet host, one page at a time, 25 s after the waits: Firefox 158 waited 8.6 s for the boot and then
+  drew 57-59, Chrome 155 never waited and drew 56-57, rt64's pacing never on, no sound short, no WebGPU errors.
   Those bursts and Chrome's 20% were the main loop's wait for its next tick (`patches/fps.c`), which polled the count
   without an OS call: on the console the scheduler and the audio thread preempt it, and here they waited behind it.
   The intro's copy of it waits as long as the frame before took, so one slow frame (a shader built behind the game, a
