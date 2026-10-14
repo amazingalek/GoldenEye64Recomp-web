@@ -44,7 +44,10 @@ ROM you load, so the launcher takes the retail dump as it is.
   frames a second meanwhile, the credits included (7-36 on v0.28.0, before rt64-web 6734747 paced presents only while
   the GPU falls behind), about 2% of the sound short. Firefox 158 waited 8.1 s for the boot's 59 and 13.4 s for Dam's
   53, and then drew 60, about 2% of the sound short. On a 3840x2000 canvas, the stand-in for integrated graphics,
-  Chrome never waited and drew 53-59, 6% of the sound short; Firefox waited 8 s and then drew 52-61, 10% short.
+  Chrome never waited and drew 53-59, 6% of the sound short; Firefox waited 8-9 s and then drew 52-61 in one run,
+  10% short; in another, alone on the GPU, it presented 171 a second for 5 s as the wait ended, the GPU's memory up
+  3.5 GB, then logged "Out of Memory" and drew 22-30 (Firefox's animation frames come in bursts there, which the page
+  reads as a faster display).
 - The page builds the game's shaders before it draws with them, so weak graphics don't draw with RT64's slow general
   shader: the 465 in `src/rt64_shaders.txt`, recorded by a script that plays the intro and the credits, shows every
   menu and starts every level (`tools/record_shaders.sh`), are built a part at a time with the game waiting under
