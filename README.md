@@ -41,6 +41,12 @@ ROM you load, so the launcher takes the retail dump as it is.
   N64Recomp-browser's `patches/`: the boot's shaders took 3.5 s in headless Chrome 155 and 9.7 s in Firefox 158,
   Dam's 7.6 s and 16.3 s, and then Dam walked at 60 frames a second in both, about 2% of the sound short, with no
   WebGPU errors.
+- N64Recomp-browser v0.28.0, which in Chrome builds the whole list behind the game and waits only for what a frame
+  wants, was tried on 2026-10-14 and backed out (main 91986de). On a first visit in headless Chrome 155 (RTX 2070, a
+  busy host) the boot no longer waited and Dam's wait fell from 6.6 s to 3.1 s, but the cast credits drew 7-36 frames
+  a second until all 202 pipelines were built, ~93 s after the page opened, and ~28 s of the sound went missing in two
+  minutes. With the patches here the boot waits ~4 s, the credits draw 56-60, and the first attract demo (Bunker 1)
+  waits 6 s and draws 12-29 for ~20 s.
 - The page builds the game's shaders before it draws with them, so weak graphics don't draw with RT64's slow general
   shader: the 465 in `src/rt64_shaders.txt`, recorded by a script that plays the intro and the credits, shows every
   menu and starts every level (`tools/record_shaders.sh`), are built a part at a time with the game waiting under
