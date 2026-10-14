@@ -37,16 +37,14 @@ ROM you load, so the launcher takes the retail dump as it is.
 - The page, in headless Chrome (2026-10-12): the launcher, Load ROM with the retail dump, the intro and its
   credits, the menus, and Dam walked on the keyboard, at the game's 60 retraces a second, with sound on the browser's
   audio thread (about 2% of its frames came up short there, under heavy CPU load). No real gamepad tried.
-- Played from the published page (main ea99b09) on 2026-10-14 (RTX 2070, a busy host), built from upstream's commits with
-  N64Recomp-browser's `patches/`: the boot's shaders took 3.5 s in headless Chrome 155 and 9.7 s in Firefox 158,
-  Dam's 7.6 s and 16.3 s, and then Dam walked at 60 frames a second in both, about 2% of the sound short, with no
-  WebGPU errors.
-- N64Recomp-browser v0.28.0, which in Chrome builds the whole list behind the game and waits only for what a frame
-  wants, was tried on 2026-10-14 and backed out (main 91986de). On a first visit in headless Chrome 155 (RTX 2070, a
-  busy host) the boot no longer waited and Dam's wait fell from 6.6 s to 3.1 s, but the cast credits drew 7-36 frames
-  a second until all 202 pipelines were built, ~93 s after the page opened, and ~28 s of the sound went missing in two
-  minutes. With the patches here the boot waits ~4 s, the credits draw 56-60, and the first attract demo (Bunker 1)
-  waits 6 s and draws 12-29 for ~20 s.
+- Played from the published page (main 775e1b3, N64Recomp-browser 7b80155) on 2026-10-14 (RTX 2070, an idle host), by
+  `tools/shader_plan.json` with N64Recomp-browser's `tools/play_page.mjs`: the launcher, Load ROM, the boot and Dam
+  in both browsers, with no WebGPU errors. On a first visit a local build of the same commit in headless Chrome 155
+  never waited: it builds the whole list behind the game, all 202 pipelines 72 s after the page opened, and drew 48-60
+  frames a second meanwhile, the credits included (7-36 on v0.28.0, before rt64-web 6734747 paced presents only while
+  the GPU falls behind), about 2% of the sound short. Firefox 158 waited 8.1 s for the boot's 59 and 13.4 s for Dam's
+  53, and then drew 60, about 2% of the sound short. On a 3840x2000 canvas, the stand-in for integrated graphics,
+  Chrome never waited and drew 53-59, 6% of the sound short; Firefox waited 8 s and then drew 52-61, 10% short.
 - The page builds the game's shaders before it draws with them, so weak graphics don't draw with RT64's slow general
   shader: the 465 in `src/rt64_shaders.txt`, recorded by a script that plays the intro and the credits, shows every
   menu and starts every level (`tools/record_shaders.sh`), are built a part at a time with the game waiting under
