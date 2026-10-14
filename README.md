@@ -60,6 +60,11 @@ ROM you load, so the launcher takes the retail dump as it is.
   profile each, an idle host: frames short per 5 s from 4,800 to 0 in both browsers outside the bursts; Firefox 158
   161k short in 45 s before, 136k after. What is left: in Firefox about 0.4 s at a few fixed moments of the boot, and
   in Chrome, in some cold runs before and after, ~20% for ~40 s while the shader list builds behind the game.
+  On the page built on N64Recomp-browser ed8764a (v0.36.0, main 0ceb0be), 2026-10-14, the same canvas, an idle host,
+  one page at a time, the boot, the credits and the attract demo's Runway: Firefox 158 waited 8.4 s and then drew 60
+  through the boot and the credits, about 0.4 s of sound short three times, then waited 12.6 s for Runway and drew
+  44-51 there; Chrome 155 never waited and drew 45-60 until all 202 were built at 65 s, 2.7 s of sound short meanwhile,
+  then 60. rt64's pacing never switched on.
 - The page builds the game's shaders before it draws with them, so weak graphics don't draw with RT64's slow general
   shader: the 465 in `src/rt64_shaders.txt`, recorded by a script that plays the intro and the credits, shows every
   menu and starts every level (`tools/record_shaders.sh`), are built a part at a time with the game waiting under
