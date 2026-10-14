@@ -72,7 +72,11 @@ ROM you load, so the launcher takes the retail dump as it is.
   second, and the audio thread getting in every ~85 ms instead of 33. Each poll yields now. Local builds on
   N64Recomp-browser b1c35d1, with and without that, 2026-10-14, a cold profile each, alone on the GPU: Chrome 155
   headless at 1256x645, 0 frames short in 85 s in each of three runs, against 630k (~20% for ~40 s) without it;
-  Firefox 158 at 3840x2000, 0 short in 95 s, against 27k, 67k and 28k in three 5 s windows.
+  Firefox 158 at 3840x2000, 0 short in 95 s, against 27k, 67k and 28k in three 5 s windows. From Pages (main
+  e8aa16e, N64Recomp-browser 2efc795), 2026-10-14, 3840x2000, a cold profile each, alone on the GPU, an idle host,
+  the boot and the credits playing by themselves: Chrome 155 never waited and drew 55-60 a second while all 202 built
+  (77 s in), Firefox 158 waited 8.5 s and then drew 58-60, 0 frames of sound short in 60 s in both after the first
+  second, and no WebGPU errors.
 - The page builds the game's shaders before it draws with them, so weak graphics don't draw with RT64's slow general
   shader: the 465 in `src/rt64_shaders.txt`, recorded by a script that plays the intro and the credits, shows every
   menu and starts every level (`tools/record_shaders.sh`), are built a part at a time with the game waiting under
