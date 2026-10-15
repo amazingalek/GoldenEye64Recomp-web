@@ -148,6 +148,11 @@ ROM you load, so the launcher takes the retail dump as it is.
   Presents stayed at 57-59.5 a second. The page built on it, at 1256x645 through `dam` with a fresh profile each:
   headless Chrome 155 never waited and drew 59.0 presents a second (median), Firefox 158 waited 8.2 s for the boot's
   59 and 11.4 s for Dam's 53 and drew 59.8. No sound short and no WebGPU errors in either.
+- Played on N64Recomp-browser v0.46.0 (main 8597c88 built with its pin moved there, served locally) on 2026-10-15, RTX
+  2070, a fresh profile each, one page at a time, a host 14-27% busy: through `dam` at 1256x645 headless Chrome 155
+  never waited and drew 60.0 presents a second (median), Firefox 158 waited 7.5 s for the boot's 59 and 11.0 s for Dam's
+  53 and drew 59.4; at 3840x2000 (`--play 25`) Chrome never waited and drew 58.6, Firefox waited 7.7 s for the boot and
+  drew 59.0. No sound short and no WebGPU errors in any.
 - Mods a player adds are off on the web (there is no recompiler that emits WebAssembly at run time); natively they
   are supported but untested.
 - cblock85's run-time recompilation of the game from the ROM (`LiveGamecode`) is gone: RecompFrontend's launcher
