@@ -20,6 +20,7 @@
 #include "recompinput/recompinput.h"
 #include "recompinput/input_state.h"
 #include "recompinput/input_mapping.h"
+#include "recompinput/profiles.h"
 #include "recompui/config.h"
 #include "librecomp/config.hpp"
 #include "goldeneye.h"
