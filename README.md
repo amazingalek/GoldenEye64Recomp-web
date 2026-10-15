@@ -120,6 +120,22 @@ ROM you load, so the launcher takes the retail dump as it is.
   never waited and drew 58.3 presents a second (median), Firefox 158 waited 8.3 s for the boot's 59 and 14.4 s for Dam's
   52 and drew 59.9. No sound short, no WebGPU errors in either. Firefox's one exception is the first load's wasm fetch,
   cut off by `coi_serviceworker.js`'s reload.
+- Firefox builds the shaders one at a time and presents nothing meanwhile, so its waits are the WGSL's size: since
+  rt64-web b052049 (N64Recomp-browser v0.41.0) a pixel shader that picks its tile per pixel (mip LOD) loads a level's
+  four taps in one switch over the draw's slots instead of one switch a tap, the list's WGSL 19.0 → 16.3 MB and the
+  largest RasterPS 224 → 185 KB. Firefox 158 waited 8.7-9.4 s for the boot and 14.0-21.7 s for Dam with it, against
+  10.4-11.6 and 17.7-23.3 from the page then on Pages without it (RTX 2070, 1256x645, a fresh profile each, three runs
+  each, interleaved, beside another program's game on the GPU), 2026-10-15.
+- What holds Chrome below 60 in the levels on a big canvas is the levels' own drawing, not the shaders: from Pages in
+  Chrome 155 with a window (`play_page.mjs --headed`) at 3840x2000, 2026-10-15, it drew 52-58 while the list built
+  behind the game, 59-60 in the title and the credits once all 202 were built (88 s), and then 48-55 in the attract
+  demo's levels with nothing left to build and the GPU 75-78% busy.
+- Played from Pages on N64Recomp-browser v0.42.0 (main 32e74b6) on 2026-10-15, RTX 2070, a fresh profile each, one
+  page at a time, by `tools/shader_plan.json` with `play_page.mjs`: at 1256x645 through `dam`, headless Chrome 155
+  never waited and drew 59.8 presents a second (median); at 3840x2000, the boot and the credits for 60 s, Chrome never
+  waited and drew 58.1 and Firefox 158 waited 7.3 s for the boot's 59 and drew 58.9. On v0.43.0 (main 168520d, the
+  same code), Firefox at 1256x645 through `dam` waited 7.9 s for the boot and 11.6 s for Dam's 52 and drew 59.3. No
+  sound short and no WebGPU errors in any.
 - Mods a player adds are off on the web (there is no recompiler that emits WebAssembly at run time); natively they
   are supported but untested.
 - cblock85's run-time recompilation of the game from the ROM (`LiveGamecode`) is gone: RecompFrontend's launcher
