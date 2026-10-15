@@ -100,6 +100,14 @@ ROM you load, so the launcher takes the retail dump as it is.
   the intro and the cast credits. On an RTX 2070 slowed by a heavy pass added to every present, d070e5c took Firefox
   from 33-37 frames a second to 42-45. Firefox builds a section's shaders one at a time and presents nothing
   meanwhile: the game stood still 23 s for Dam's 55 on a first visit there (RTX 2070).
+- Played on that laptop's Intel UHD (Tiger Lake, Windows 11 in its best power efficiency mode) on 2026-10-14, from the
+  published page (main e8aa16e, N64Recomp-browser 2efc795), by `tools/shader_plan.json` (`--play 90` and `--section
+  dam`) with N64Recomp-browser's `play_page.mjs` at 1256x645, Firefox 158 and headless Chrome 155, a fresh profile
+  each, one page at a time, presents a second as medians after the waits, the RTX beside it drawing nothing: Firefox
+  waited 7.7 s for the boot's 59 and drew 46.7 (24.4-51.0), rt64 pacing it twice to the game's 6 while the logo
+  turned; for Dam it waited 8.5 s and then 11.8 s for the section's 53, about 20 s in all, and drew 56.6 over the rest
+  of the run, about 20 s. Chrome never waited and drew 47.7 and, at Dam, 54.7. The Intel chip 27-48% busy, no sound
+  short, no WebGPU errors.
 - Mods a player adds are off on the web (there is no recompiler that emits WebAssembly at run time); natively they
   are supported but untested.
 - cblock85's run-time recompilation of the game from the ROM (`LiveGamecode`) is gone: RecompFrontend's launcher
