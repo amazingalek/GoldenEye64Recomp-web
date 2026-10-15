@@ -114,6 +114,12 @@ ROM you load, so the launcher takes the retail dump as it is.
   and then 40 s with `play_page.mjs`: headless Chrome 155 never waited and drew 56.8 presents a second (median),
   Firefox 158 waited 18.9 s for the boot's 59 and then drew 58.8. No sound short, no WebGPU errors or exceptions in
   either.
+- Played again from Pages, built on N64Recomp-browser 7277a2e (rt64-web 8bea892, tile copies reused from one display
+  list to the next; main b94f28f, gh-pages bff2ce6) on 2026-10-15, RTX 2070, 1256x645, a fresh profile each, the host's
+  every core busy with other work, by `tools/shader_plan.json`'s `dam` section with `play_page.mjs`: headless Chrome 155
+  never waited and drew 58.3 presents a second (median), Firefox 158 waited 8.3 s for the boot's 59 and 14.4 s for Dam's
+  52 and drew 59.9. No sound short, no WebGPU errors in either. Firefox's one exception is the first load's wasm fetch,
+  cut off by `coi_serviceworker.js`'s reload.
 - Mods a player adds are off on the web (there is no recompiler that emits WebAssembly at run time); natively they
   are supported but untested.
 - cblock85's run-time recompilation of the game from the ROM (`LiveGamecode`) is gone: RecompFrontend's launcher
