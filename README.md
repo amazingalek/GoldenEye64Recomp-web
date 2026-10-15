@@ -136,6 +136,18 @@ ROM you load, so the launcher takes the retail dump as it is.
   waited and drew 58.1 and Firefox 158 waited 7.3 s for the boot's 59 and drew 58.9. On v0.43.0 (main 168520d, the
   same code), Firefox at 1256x645 through `dam` waited 7.9 s for the boot and 11.6 s for Dam's 52 and drew 59.3. No
   sound short and no WebGPU errors in any.
+- In Dam, render to RAM's late copy had the thread that runs the display lists asking at every retrace whether the
+  copy could land, and each question waited behind everything queued on the page's thread. Since plume-web 81344f5
+  and ba93421 (rt64-web a5bc25d) the readback's answer, the swap chain's size and its refresh rate are published by
+  the page's thread and read without waiting. CPU profiles over 13 s in Dam at 3840x2000, Chrome 155 with a window,
+  RTX 2070, a busy host, 2026-10-15:
+  - The display list thread's waits for the page's thread fell from 2,335 ms to 151 ms.
+  - The present thread's waits fell from 963 ms to 106 ms.
+  - The page's thread fell from 47% busy to 32%.
+
+  Presents stayed at 57-59.5 a second. The page built on it, at 1256x645 through `dam` with a fresh profile each:
+  headless Chrome 155 never waited and drew 59.0 presents a second (median), Firefox 158 waited 8.2 s for the boot's
+  59 and 11.4 s for Dam's 53 and drew 59.8. No sound short and no WebGPU errors in either.
 - Mods a player adds are off on the web (there is no recompiler that emits WebAssembly at run time); natively they
   are supported but untested.
 - cblock85's run-time recompilation of the game from the ROM (`LiveGamecode`) is gone: RecompFrontend's launcher
