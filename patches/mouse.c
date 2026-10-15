@@ -18,6 +18,10 @@
 #define PLAYER_LOOKAHEAD PLAYER_FIELD(s32, 0x118)
 #define PLAYER_VV_THETA PLAYER_FIELD(f32, 0x148)
 #define PLAYER_VV_VERTA PLAYER_FIELD(f32, 0x158)
+#define PLAYER_INSIGHTAIMMODE PLAYER_FIELD(s32, 0x124)
+
+#define CROUCH_SQUAT 0
+#define CROUCH_STAND 2
 
 // An item's statistics: the crosshair's damping and the aim lock's speed.
 #define ITEM_CROSSHAIR_SPEED(stats) (*(f32*)((u8*)(stats) + 0x38))
@@ -55,11 +59,15 @@ extern f32 g_GlobalTimerDelta;
 // The crosshair follows the mouse at once, not with the weapon's damping (which smooths a stick's moves).
 #define MOUSE_CROSSHAIR_SPEED 0.01f
 
-// Where the mouse has put the crosshair in aim mode, x right and y up, and whether it has moved it since aim mode
+// Where the mouse has put the crosshair in aim mode, x right and y down as the game has them, and whether it has moved it since aim mode
 // began: until it has, a pad aims as it always did.
 static f32 aim_x;
 static f32 aim_y;
 static s32 aim_moved;
+
+// Whether the crouch key has Bond squatting, and the player it was pressed for.
+static s32 key_crouch;
+static void* key_crouch_player;
 
 static f32 clampf(f32 v, f32 lo, f32 hi) {
     return v < lo ? lo : (v > hi ? hi : v);
@@ -70,8 +78,9 @@ static f32 zoom_scale(void) {
     return clampf(getPlayer_c_perspfovy() / 60.0f, 0.05f, 2.0f);
 }
 
-static void turn_view(f32 degrees_x, f32 degrees_y) {
-    f32 theta = PLAYER_VV_THETA + degrees_x;
+// Turns the view right and up by these angles (the game's theta grows to the left).
+static void turn_view(f32 degrees_right, f32 degrees_up) {
+    f32 theta = PLAYER_VV_THETA - degrees_right;
     while (theta >= 360.0f) {
         theta -= 360.0f;
     }
@@ -79,7 +88,7 @@ static void turn_view(f32 degrees_x, f32 degrees_y) {
         theta += 360.0f;
     }
     PLAYER_VV_THETA = theta;
-    PLAYER_VV_VERTA = clampf(PLAYER_VV_VERTA + degrees_y, -90.0f, 90.0f);
+    PLAYER_VV_VERTA = clampf(PLAYER_VV_VERTA + degrees_up, -90.0f, 90.0f);
 }
 
 static void apply_pc_actions(void) {
@@ -88,9 +97,22 @@ static void apply_pc_actions(void) {
         attempt_reload_item_in_hand(GUNRIGHT);
         attempt_reload_item_in_hand(GUNLEFT);
     }
+    // The crouch key toggles a squat, as the PC ports' does. Outside aim mode the game leaves a crouch as it is, so
+    // anything else that stands Bond up (a new level, the tank) ends the key's; in aim mode the game stands him back
+    // up every tick C-up isn't held, unless C-down is, so while the key's squat lasts it is put back each tick.
+    if (key_crouch && (key_crouch_player != g_CurrentPlayer ||
+                       (!PLAYER_INSIGHTAIMMODE && PLAYER_CROUCHPOS != CROUCH_SQUAT))) {
+        key_crouch = FALSE;
+    }
     if (actions & PC_ACTION_CROUCH) {
-        // The game's own crouch: down to a squat, or up from any crouch to standing.
-        currentPlayerAdjustCrouchPos(PLAYER_CROUCHPOS == 2 ? -2 : 2);
+        key_crouch = !key_crouch;
+        key_crouch_player = g_CurrentPlayer;
+        if (!key_crouch) {
+            currentPlayerAdjustCrouchPos(CROUCH_STAND - CROUCH_SQUAT);
+        }
+    }
+    if (key_crouch && PLAYER_CROUCHPOS != CROUCH_SQUAT) {
+        currentPlayerAdjustCrouchPos(CROUCH_SQUAT - CROUCH_STAND);
     }
     if (actions & PC_ACTION_NEXT_WEAPON) {
         advance_through_inventory();
@@ -133,7 +155,7 @@ RECOMP_PATCH void sub_GAME_7F067FBC(f32 x, f32 y) {
     if (dx != 0.0f || dy != 0.0f) {
         f32 travel = AIM_TRAVEL_PER_COUNT * zoom_scale();
         aim_x = clampf(aim_x + dx * travel, -1.0f, 1.0f);
-        aim_y = clampf(aim_y - dy * travel, -1.0f, 1.0f);
+        aim_y = clampf(aim_y + dy * travel, -1.0f, 1.0f);
         aim_moved = TRUE;
     }
 
@@ -142,7 +164,7 @@ RECOMP_PATCH void sub_GAME_7F067FBC(f32 x, f32 y) {
         y = clampf(aim_y + y, -1.0f, 1.0f);
         crosshair_speed = MOUSE_CROSSHAIR_SPEED;
 
-        // Past the boundary the view turns toward that edge, faster the nearer the crosshair is to it.
+        // Past the boundary the view turns toward that edge, faster the nearer the crosshair is to it (y is down).
         f32 seconds = g_GlobalTimerDelta / 60.0f;
         f32 turn = EDGE_TURN_DEGREES * zoom_scale() * seconds / (1.0f - EDGE_BOUNDARY);
         f32 turn_x = 0.0f;
@@ -153,9 +175,9 @@ RECOMP_PATCH void sub_GAME_7F067FBC(f32 x, f32 y) {
             turn_x = (x + EDGE_BOUNDARY) * turn;
         }
         if (y > EDGE_BOUNDARY) {
-            turn_y = (y - EDGE_BOUNDARY) * turn;
+            turn_y = -(y - EDGE_BOUNDARY) * turn;
         } else if (y < -EDGE_BOUNDARY) {
-            turn_y = (y + EDGE_BOUNDARY) * turn;
+            turn_y = -(y + EDGE_BOUNDARY) * turn;
         }
         if (turn_x != 0.0f || turn_y != 0.0f) {
             turn_view(turn_x, turn_y);
