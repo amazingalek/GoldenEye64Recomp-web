@@ -68,3 +68,6 @@ osGetCount_recomp = 0x8F000104;
 sprintf_recomp = 0x8F000108;
 osPfsInit_recomp = 0x8F00010C;
 osMotorInit_recomp = 0x8F000110;
+recomp_take_mouse_look = 0x8F000114;
+recomp_get_pc_actions = 0x8F000118;
+recomp_mouse_look_enabled = 0x8F00011C;

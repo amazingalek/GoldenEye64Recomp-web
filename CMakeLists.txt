@@ -167,6 +167,7 @@ set (SOURCES
     ${CMAKE_SOURCE_DIR}/src/main/libultra_tlb_stubs.c
     ${CMAKE_SOURCE_DIR}/src/game/config.cpp
     ${CMAKE_SOURCE_DIR}/src/game/recomp_api.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/mouse_keyboard.cpp
     ${CMAKE_SOURCE_DIR}/rsp/aspMain.cpp
 )
 
