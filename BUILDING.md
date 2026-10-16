@@ -76,3 +76,7 @@ cmake --build build-web --target GoldenRecomp
 `Cross-Origin-Embedder-Policy: require-corp` (threads need SharedArrayBuffer), or with `coi_serviceworker.js` beside
 it where headers can't be set. Open it in a browser with WebGPU and pick your retail dump with Load ROM: it is kept
 in the browser's storage, with settings and saves.
+
+`tools/play_plan.json` plays the page as a player would, for N64Recomp-browser's `tools/play_page.mjs`: the boot, then
+Dam, started by `tools/shader_survey.js` as mission select does, and about a minute of Bond walking, turning,
+strafing and firing (its header says more).
