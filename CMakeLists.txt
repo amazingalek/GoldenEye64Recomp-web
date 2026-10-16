@@ -31,7 +31,7 @@ if (EMSCRIPTEN)
     add_compile_options(-pthread -fwasm-exceptions -msimd128 -mtail-call)
     add_compile_options("-DXXH_HAS_INCLUDE(x)=0")
     add_link_options(-pthread -fwasm-exceptions -mtail-call)
-    # ccache when it is on PATH (BUILDING.md, "The web page").
+    # ccache when it is on PATH (N64Recomp-browser's frontend/build_speed.cmake).
     include(${CMAKE_SOURCE_DIR}/lib/N64Recomp-browser/frontend/build_speed.cmake)
     # The shaders the page specializes at build time, built with the game waiting: the menus' before it starts, and
     # each level's when the level first draws (src/rt64_shaders.txt says why and how it was recorded).
