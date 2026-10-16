@@ -94,6 +94,12 @@ ROM you load, so the launcher takes the retail dump as it is.
   - The page's thread fell from 47% busy to 32%.
 
   Presents stayed at 57-59.5 a second.
+- The 1.6 s with nothing presented after Start on a first visit is the game's own boot: the boss thread's first
+  retraces (~0.6 s), then, with no save yet, `fileValidateSaves` resetting and writing every save to the EEPROM, 48
+  EEPROM calls each between `joyDisablePoll` and `joyEnablePoll`, which wait a retrace for the controller thread
+  (~0.77 s). A second visit has the save and waits 1.05 s (headless Chrome 155, 3840x2000, RTX 2070; N64Recomp-browser's
+  [docs/findings.md](https://github.com/amazingalek/N64Recomp-browser/blob/main/docs/findings.md), Present gaps after
+  Start).
 - Mods a player adds are off on the web (there is no recompiler that emits WebAssembly at run time); natively they
   are supported but untested.
 - cblock85's run-time recompilation of the game from the ROM (`LiveGamecode`) is gone: RecompFrontend's launcher
