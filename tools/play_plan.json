@@ -2,7 +2,8 @@
   "header": ["The page's plan for N64Recomp-browser's tools/play_page.mjs: the launcher, Load ROM on a new profile, Start Game",
              "and the logos; then Dam, which tools/shader_survey.js starts as mission select does (MENU_RUN_STAGE behind the",
              "stage's briefing), its opening flyover, and about a minute of Bond on foot: walking down the road and back, turning,",
-             "strafing and firing."],
+             "strafing and firing. Its waits and holds there are on the game's own clock, g_GlobalTimer (60ths of a second),",
+             "so every browser walks Bond as far whatever frames it gives the game."],
   "page": "GoldenRecomp.html",
   "load": [["until","Device Name",30000],["wait",10000]],
   "setup": [["rom",628,364],["wait",3000]],
@@ -10,6 +11,7 @@
   "play": [
     ["evalFile","shader_survey.js"],
     ["eval","surveyMenu(11, 33)"],
+    ["clock","n64r(0x8004817C)",60],
     ["wait",22000],
     ["hold","KeyW","w",87,3000],
     ["hold","KeyD","d",68,800],
