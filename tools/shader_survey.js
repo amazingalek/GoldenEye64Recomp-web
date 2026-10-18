@@ -3,7 +3,8 @@
 // the game to show a menu with that stage's briefing behind it (MENU_RUN_STAGE starts the stage) and resolves once it
 // has taken the request, setCursor(x, y), which moves the menus' cursor (cursor_h_pos and cursor_v_pos, floats), and
 // untilStageLeaves(stage, ms), which resolves once g_StageNum is no longer that stage (the title, 90, giving way to an
-// attract demo), or after ms.
+// attract demo), or after ms, and setInvincible(), which sets g_PlayerInvincible so Bond lives through a level's
+// guards for as long as a section plays.
 (() => {
   if (!window.__survey) {
     for (let a = 0x80000000; a < 0x80c00000; a += 4) {
@@ -26,5 +27,6 @@
     while ((n64r(0x80023FA8) | 0) === stage && Date.now() < end) await new Promise((resolve) => setTimeout(resolve, 50));
     return 'stage ' + (n64r(0x80023FA8) | 0);
   };
+  window.setInvincible = () => { n64w(0x800362B4, 1); return 'stage ' + (n64r(0x80023FA8) | 0); };
   return s ? 'survey at ' + s.toString(16) : 'no survey struct: a page built without patches/shader_survey.c';
 })()

@@ -9,10 +9,13 @@
 # patches/shader_survey.c show each menu and start each level. Section 0 is the launcher, the boot as it plays by
 # itself until the first attract demo (the logos, the cast credits, the gun barrel and the title: later rounds of
 # the cast draw nothing new), the menus, a mission's briefing and its report; then a section a level, from its
-# opening cutscene to a few seconds in, walking, turning, firing and opening the watch. Not recorded: the
-# multiplayer levels, the attract demos, and what a level draws further in that its start doesn't (RT64 builds
-# those when the game first asks for them). Flags follow settings (filtering, HDR, MSAA, upscaling), so a change to
-# one of those defaults means recording again.
+# opening cutscene to a few seconds in, walking, turning, firing and opening the watch. Jungle, Control, Caverns,
+# Aztec and Egypt, whose guards and rooms further in draw shaders their starts don't, are played again in a load of
+# their own, Bond invincible (tools/shader_survey.js), about 45 s past the cutscene: forward and back by as much,
+# turning, strafing, firing, aiming, changing weapon and opening doors, with the guards that come for him fought.
+# Not recorded: the multiplayer levels, the attract demos, and what the other levels draw further in than their
+# starts (RT64 builds those when the game first asks for them). Flags follow settings (filtering, HDR, MSAA,
+# upscaling), so a change to one of those defaults means recording again.
 00502048 00882c3f fcffffff fffe793c 0800000c
 00502048 00882c3f fc121824 ff33ffff 088a000c
 00502048 00882c3f fc127e24 fffff9fc 088a000c
@@ -1390,6 +1393,13 @@ c41041c8 00992c2f fc26a004 1f1093ff 1ccf540c
 00504240 0089ac2f fcffffff fffe793c 1cc95408
 0c184b50 00992c6f fc26a004 1f1093ff 18060088
 c4112078 0099ec6f fc26a004 1f1093fb 1806008c
+00504340 00802c6f fc129a25 ff37ffff 008a000b
+c4113078 0099ac6f fc26c204 1fccdff8 1ccf5408
+c4113078 0098ec2f fc26e804 1ffcfbf8 08075408
+c4113078 0098ac6f fc26c204 1fccdff8 088e0008
+c4113078 0099ac6f fc26c204 1fccdff8 18060088
+c4113078 0098ec6f fc26e804 1ffcfbf8 08075408
+00502078 0088ac6f fcffffff fffe793c 0800000c
 section control
 c4112078 0099ac2f fc26a004 1f1093fb 1806008c
 c4112078 00992c2f fc26a004 1f1093fb 1806008c
@@ -1475,6 +1485,14 @@ c41041c8 00992c2f fc26a004 1f1093ff 1ccf540c
 005041c8 0089ac2f fcffffff fffe793c 1cc95408
 00504240 0089ac2f fcffffff fffdf6fb 1cc95408
 00504240 0089ac2f fcffffff fffe793c 1cc95408
+c8112d58 0099ac6f fc26a004 1f1093ff 1806008c
+c8112d58 00992c6f fc26a004 1ffc93fc 1806008c
+00502078 0088ac6f fc121824 ff33ffff 088a000c
+c8102078 0099ec6f fc26a004 1ffc93fc 1806008c
+c8102078 0099ac6f fc26a004 1f1093ff 1ccf540c
+c4112078 0099ec6f fc159804 5ffedbf8 1ccb5408
+c4104dd8 0099ac6f fc26a004 1f1093fb 1806008c
+c4112078 0098ac6f fc159804 5ffedbf8 0ccb540c
 section caverns
 c4112078 0099ac2f fc26a004 1f1093fb 1806008c
 c4112078 0099ac2f fc159804 5ffedbf8 1803100c
@@ -1548,6 +1566,9 @@ c41041c8 00992c2f fc26a004 1f1093ff 1ccf540c
 005041c8 0089ac2f fcffffff fffe793c 1cc95408
 00504240 0089ac2f fcffffff fffdf6fb 1cc95408
 00504240 0089ac2f fcffffff fffe793c 1cc95408
+c4112078 0099ec6f fc26a004 1f1093fb 1ccf5408
+c4112078 0099ac6f fc159804 5ffedbf8 18031008
+c4112078 0099ec2f fc26a004 1f1093fb 1ccf5408
 section cradle
 c8102078 00992c2f fc26a004 1ffc93fc 18060088
 c8102078 00992c2f fc26a004 1ffc93fc 1806008c
@@ -1699,6 +1720,7 @@ c41041c8 00992c2f fc26a004 1f1093ff 1ccf540c
 005041cb 0089ac2f fcffffff fffe793c 1cc95408
 c41041c8 0099ac2f fc26ea04 1f10ffff 1ccf540c
 c41041c8 0099ac2f fc26ea04 1f10ffff 1806008c
+c8102078 00992c6f fc26a004 1ffc93fc 1807100c
 section egypt
 c4112078 0099ac2f fc26a004 1f1093fb 1806008c
 c4112078 0098ac2f fc26a004 1f1093fb 088e000c
@@ -1769,6 +1791,7 @@ c41041c8 00992c2f fc26a004 1f1093ff 1ccf540c
 005041c8 0089ac2f fcffffff fffe793c 1cc95408
 00504240 0089ac2f fcffffff fffdf6fb 1cc95408
 00504240 0089ac2f fcffffff fffe793c 1cc95408
+00504dd8 00882caf fc121824 ff33ffff 0ccb5408
 section credits
 0c1841c8 0099ac3f fc26a004 1f1493ff 1806008c
 0c1841c8 0099ac3f fc26a004 1f1493ff 1ccf540c
