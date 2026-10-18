@@ -10,7 +10,7 @@
 # itself until the first attract demo (the logos, the cast credits, the gun barrel and the title: later rounds of
 # the cast draw nothing new), the menus, a mission's briefing and its report; then a section a level, from its
 # opening cutscene to a few seconds in, walking, turning, firing and opening the watch. Jungle, Control, Caverns,
-# Aztec and Egypt, whose guards and rooms further in draw shaders their starts don't, are played again in a load of
+# Cradle, Aztec and Egypt, whose guards and rooms further in draw shaders their starts don't, are played again in a load of
 # their own, Bond invincible (tools/shader_survey.js), about 45 s past the cutscene: forward and back by as much,
 # turning, strafing, firing, aiming, changing weapon and opening doors, with the guards that come for him fought.
 # Not recorded: the multiplayer levels, the attract demos, and what the other levels draw further in than their
@@ -1493,6 +1493,8 @@ c8102078 0099ac6f fc26a004 1f1093ff 1ccf540c
 c4112078 0099ec6f fc159804 5ffedbf8 1ccb5408
 c4104dd8 0099ac6f fc26a004 1f1093fb 1806008c
 c4112078 0098ac6f fc159804 5ffedbf8 0ccb540c
+c41049d8 0099ac2f fc159804 5ffedbf8 18020088
+00552d58 00882c2f fc127e24 fffff9fc 0803100c
 section caverns
 c4112078 0099ac2f fc26a004 1f1093fb 1806008c
 c4112078 0099ac2f fc159804 5ffedbf8 1803100c
@@ -1569,6 +1571,7 @@ c41041c8 00992c2f fc26a004 1f1093ff 1ccf540c
 c4112078 0099ec6f fc26a004 1f1093fb 1ccf5408
 c4112078 0099ac6f fc159804 5ffedbf8 18031008
 c4112078 0099ec2f fc26a004 1f1093fb 1ccf5408
+c41049d8 0099ac6f fc159a04 5ffefff8 18031008
 section cradle
 c8102078 00992c2f fc26a004 1ffc93fc 18060088
 c8102078 00992c2f fc26a004 1ffc93fc 1806008c
@@ -1657,6 +1660,7 @@ c41041c8 00992c2f fc26a004 1f1093ff 1ccf540c
 005041c8 0089ac2f fcffffff fffe793c 1cc95408
 00504240 0089ac2f fcffffff fffdf6fb 1cc95408
 00504240 0089ac2f fcffffff fffe793c 1cc95408
+00502078 00892c2f fcffffff fffe793c 1801100c
 section aztec
 c4112078 0099ec2f fc159804 5ffedbf8 1802008c
 c4112078 0099ec2f fc159804 5ffedbf8 1ccb540c
