@@ -104,3 +104,26 @@ ROM you load, so the launcher takes the retail dump as it is.
   are supported but untested.
 - cblock85's run-time recompilation of the game from the ROM (`LiveGamecode`) is gone: RecompFrontend's launcher
   loads the ROM at run time instead, and the game's code is recompiled at build time.
+
+## Keyboard and mouse
+
+The `mouse` branch plays the game with keyboard and mouse as the PC ports do (the design of
+[goldeneye-pc-port](https://github.com/jkdansereau/goldeneye-pc-port)'s `port/src/input.c`, and the feel of the
+[Perfect Dark port](https://github.com/fgsfdsfgs/perfect_dark)), all of it in this fork's own code: `patches/mouse.c` is
+the game's side and `src/game/mouse_keyboard.cpp` the program's. It stays off `main` and the page until it has been
+played by hand.
+
+- Outside aim mode the mouse turns Bond and tilts his view, 0.055 degrees a count at the default 50% as Perfect Dark's
+  port does, less as the view zooms. In aim mode it moves the crosshair, and the view turns while the crosshair is past
+  70% of the way to an edge. Mouse up looks up, whatever the game's Look Up/Down option says.
+- Left click fires (also F), right click aims (also Left Shift), the wheel changes weapon, R reloads, and Left Ctrl or
+  C crouches, a toggle aim mode keeps. WASD walks and strafes, the arrows turn and look, Space or Q is A (weapon), E is
+  B (use), X is L, Return or Tab is Start (the watch). Motion and keys while the watch is up do nothing.
+- Settings > General > Mouse Sensitivity sets how far a count goes; 0 turns mouse look off and frees the pointer.
+  Above 0 RecompFrontend asks for the browser's pointer lock once the game starts, which a browser grants only at a
+  click or a key.
+- Played in Dam in Chrome (headless and off the desktop) and Firefox, with synthetic mouse events and Bond's angles,
+  crouch, aim mode and watch read from RDRAM: in both the mouse turns him the way the stick does, up looks up, the
+  crosshair follows the mouse, the edge turns the view that way, and the watch takes no motion; in Chrome the crouch
+  lasts through aim mode and fire, reload and the wheel work. Neither browser gave those runs the pointer lock, so how
+  it feels, and the lock itself, are left to a play by hand.
