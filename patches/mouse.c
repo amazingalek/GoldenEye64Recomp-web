@@ -78,9 +78,10 @@ static f32 zoom_scale(void) {
     return clampf(getPlayer_c_perspfovy() / 60.0f, 0.05f, 2.0f);
 }
 
-// Turns the view right and up by these angles (the game's theta grows to the left).
+// Turns the view right and up by these angles (the game's theta grows to the right, as the stick turns Bond, and its
+// verta upward).
 static void turn_view(f32 degrees_right, f32 degrees_up) {
-    f32 theta = PLAYER_VV_THETA - degrees_right;
+    f32 theta = PLAYER_VV_THETA + degrees_right;
     while (theta >= 360.0f) {
         theta -= 360.0f;
     }
