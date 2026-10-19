@@ -115,7 +115,10 @@ played by hand.
 
 - Outside aim mode the mouse turns Bond and tilts his view, 0.055 degrees a count at the default 50% as Perfect Dark's
   port does, less as the view zooms. In aim mode it moves the crosshair, and the view turns while the crosshair is past
-  70% of the way to an edge. Mouse up looks up, whatever the game's Look Up/Down option says.
+  70% of the way to an edge. Mouse up looks up, whatever the game's Look Up/Down option says, unless Settings >
+  General > Invert Mouse Y is on.
+- In the menus' folders (file, mission and difficulty select) the mouse moves the game's cursor, as the stick does, and
+  left click selects.
 - Left click fires (also F), right click aims (also Left Shift), the wheel changes weapon, R reloads, and Left Ctrl or
   C crouches, a toggle aim mode keeps. WASD walks and strafes, the arrows turn and look, Space or Q is A (weapon), E is
   B (use), X is L, Return or Tab is Start (the watch). Motion and keys while the watch is up do nothing.

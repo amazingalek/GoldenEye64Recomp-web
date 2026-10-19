@@ -5,7 +5,11 @@
 // Dark's port does (0.055 degrees a count at the default 50%, finer as the view zooms); in aim mode it moves the
 // crosshair across the screen, and the view turns while the crosshair is past 70% of the way to an edge. The keys and
 // the wheel's actions beyond the N64's buttons (reload, crouch, next and previous weapon) come from the program
-// (src/game/mouse_keyboard.cpp), which also puts the mouse's buttons on the pad (fire, aim).
+// (src/game/mouse_keyboard.cpp), which also puts the mouse's buttons on the pad (fire, aim). Invert Mouse Y flips the
+// mouse's up and down for looking and aiming.
+//
+// In the front end's folders (file, mission and difficulty select) the mouse moves the menus' own cursor as the stick
+// does, and its left click selects, since the menus take Z as they take A.
 //
 // The game calls one of two functions each tick it reads Bond's controls, with the crosshair's input: sub_GAME_7F067F58
 // outside aim mode and sub_GAME_7F067FBC in it. Both are patched here; each passes the game's own arguments on as the
@@ -41,6 +45,7 @@
 void recomp_take_mouse_look(f32* dx, f32* dy);
 u32 recomp_get_pc_actions(void);
 s32 recomp_mouse_look_enabled(void);
+s32 recomp_mouse_invert_y(void);
 
 s32 getCurrentPlayerWeaponId(s32 hand);
 void* get_ptr_item_statistics(s32 item);
@@ -50,7 +55,15 @@ void currentPlayerAdjustCrouchPos(s32 delta);
 void attempt_reload_item_in_hand(s32 hand);
 void advance_through_inventory(void);
 void backstep_through_inventory(void);
+s8 joyGetStickX(s8 contpadnum);
+s8 joyGetStickY(s8 contpadnum);
+f32 getPlayer_c_screenleft(void);
+f32 getPlayer_c_screenwidth(void);
+f32 getPlayer_c_screentop(void);
+f32 getPlayer_c_screenheight(void);
 extern f32 g_GlobalTimerDelta;
+extern f32 cursor_h_pos;
+extern f32 cursor_v_pos;
 
 // Degrees a count outside aim mode, and the crosshair's travel a count in aim mode (1 is the screen's edge), at 100%.
 #define LOOK_DEGREES_PER_COUNT 0.11f
@@ -60,6 +73,16 @@ extern f32 g_GlobalTimerDelta;
 #define EDGE_TURN_DEGREES 120.0f
 // The crosshair follows the mouse at once, not with the weapon's damping (which smooths a stick's moves).
 #define MOUSE_CROSSHAIR_SPEED 0.01f
+// The menu cursor's travel a count at 100%, in the menus' units (the screen is 440 across): at the default 50% a count
+// moves it about as far across a full-screen page as the desktop's pointer goes.
+#define MENU_UNITS_PER_COUNT 0.5f
+// The menu cursor as the game moves it with the stick: past a dead zone of 5, up to 70 counts more, 0.075 units a tick
+// each and half a unit besides, kept 20 units inside the screen.
+#define MENU_STICK_DEAD_ZONE 5
+#define MENU_STICK_MAX 70
+#define MENU_STICK_UNITS 0.075f
+#define MENU_STICK_MIN_UNITS 0.5f
+#define MENU_CURSOR_MARGIN 20.0f
 
 // Where the mouse has put the crosshair in aim mode, x right and y down as the game has them, and whether it has moved it since aim mode
 // began: until it has, a pad aims as it always did.
@@ -129,6 +152,9 @@ static void apply_pc_actions(u32 actions) {
 static void take_mouse(f32* dx, f32* dy) {
     u32 actions = recomp_get_pc_actions();
     recomp_take_mouse_look(dx, dy);
+    if (recomp_mouse_invert_y()) {
+        *dy = -*dy;
+    }
     if (!PLAYER_OUTSIDE_WATCH_MENU || PLAYER_PAUSING) {
         actions = 0;
         *dx = 0.0f;
@@ -204,4 +230,35 @@ RECOMP_PATCH void sub_GAME_7F067FBC(f32 x, f32 y) {
 // mouse looks, the saved option as it was.
 RECOMP_PATCH void currentPlayerSetLookAheadSetting(s32 setting) {
     PLAYER_LOOKAHEAD = recomp_mouse_look_enabled() ? 0 : setting;
+}
+
+// How far the stick moves the menu cursor this tick along one axis.
+static f32 menu_stick_travel(s32 v) {
+    if (v > MENU_STICK_DEAD_ZONE) {
+        v -= MENU_STICK_DEAD_ZONE;
+    } else if (v < -MENU_STICK_DEAD_ZONE) {
+        v += MENU_STICK_DEAD_ZONE;
+    } else {
+        return 0.0f;
+    }
+    if (v > MENU_STICK_MAX) {
+        v = MENU_STICK_MAX;
+    } else if (v < -MENU_STICK_MAX) {
+        v = -MENU_STICK_MAX;
+    }
+    return ((f32)v * MENU_STICK_UNITS + (v > 0 ? MENU_STICK_MIN_UNITS : -MENU_STICK_MIN_UNITS)) * g_GlobalTimerDelta;
+}
+
+// The menus' cursor, each tick a menu shows it: the stick moves it (the stick's y up, the cursor's down), and the mouse
+// too.
+RECOMP_PATCH void frontUpdateControlStickPosition(void) {
+    f32 dx, dy;
+    recomp_take_mouse_look(&dx, &dy);
+
+    f32 left = getPlayer_c_screenleft();
+    f32 top = getPlayer_c_screentop();
+    cursor_h_pos = clampf(cursor_h_pos + menu_stick_travel(joyGetStickX(0)) + dx * MENU_UNITS_PER_COUNT,
+                          left + MENU_CURSOR_MARGIN, left + getPlayer_c_screenwidth() - MENU_CURSOR_MARGIN);
+    cursor_v_pos = clampf(cursor_v_pos + menu_stick_travel(-joyGetStickY(0)) + dy * MENU_UNITS_PER_COUNT,
+                          top + MENU_CURSOR_MARGIN, top + getPlayer_c_screenheight() - MENU_CURSOR_MARGIN);
 }

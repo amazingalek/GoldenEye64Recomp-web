@@ -6,7 +6,7 @@
 //   toggle), next and previous weapon (the wheel, down and up);
 // - the motion, gathered from every event until the patches take it, since the frontend keeps only what came since
 //   its last poll and the game reads its controls at its own rate;
-// - the keyboard's default bindings and the Mouse Sensitivity option, on at 50%.
+// - the keyboard's default bindings, the Mouse Sensitivity option, on at 50%, and Invert Mouse Y, off.
 // None of it reaches the game while the frontend's menus have the input, or while the pointer isn't locked.
 
 #include <algorithm>
@@ -88,6 +88,18 @@ namespace {
         return 0;
     }
 
+    // Invert Mouse Y's id and values.
+    const std::string invert_y_option = "mouse_invert_y";
+    enum class InvertY {
+        Off,
+        On,
+        OptionCount
+    };
+    const std::vector<recomp::config::ConfigOptionEnumOption> invert_y_options = {
+        { InvertY::Off, "Off" },
+        { InvertY::On, "On" },
+    };
+
     float mouse_sensitivity() {
         return (float)recompui::config::general::get_mouse_sensitivity() / 100.0f;
     }
@@ -138,6 +150,14 @@ void goldeneye::add_mouse_option(recomp::config::Config& general) {
         "<br />"
         "Left click fires and right click aims; the wheel changes weapon, R reloads and Left Ctrl or C crouches.",
         50.0
+    );
+    general.add_enum_option(
+        invert_y_option,
+        "Invert Mouse Y",
+        "Moving the mouse up looks down, and moves the crosshair down in aim mode. The menus' cursor follows the mouse "
+        "either way.",
+        invert_y_options,
+        InvertY::Off
     );
 }
 
@@ -197,4 +217,9 @@ extern "C" void recomp_get_pc_actions(uint8_t* rdram, recomp_context* ctx) {
 
 extern "C" void recomp_mouse_look_enabled(uint8_t* rdram, recomp_context* ctx) {
     _return<int32_t>(ctx, mouse_sensitivity() > 0.0f ? 1 : 0);
+}
+
+extern "C" void recomp_mouse_invert_y(uint8_t* rdram, recomp_context* ctx) {
+    auto value = recompui::config::get_general_config().get_option_value(invert_y_option);
+    _return<int32_t>(ctx, static_cast<InvertY>(std::get<uint32_t>(value)) == InvertY::On ? 1 : 0);
 }
