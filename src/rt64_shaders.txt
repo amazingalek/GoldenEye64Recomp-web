@@ -13,6 +13,9 @@
 # Cradle, Aztec and Egypt, whose guards and rooms further in draw shaders their starts don't, are played again in a load of
 # their own, Bond invincible (tools/shader_survey.js), about 45 s past the cutscene: forward and back by as much,
 # turning, strafing, firing, aiming, changing weapon and opening doors, with the guards that come for him fought.
+# Dam's section ends with 21 lines no recording has, what longer plays of Dam drew past the survey's reach; a
+# recording drops them, so they go back in after one. Before N64Recomp-browser v0.68.0 Firefox drew a miss with the
+# ubershader for the rest of the visit, and these took two thirds of Dam's frame rate on a laptop's integrated graphics.
 # Not recorded: the multiplayer levels, the attract demos, and what the other levels draw further in than their
 # starts (RT64 builds those when the game first asks for them). Flags follow settings (filtering, HDR, MSAA,
 # upscaling), so a change to one of those defaults means recording again.
@@ -193,6 +196,27 @@ c41041c8 00992c2f fc26a004 1f1093ff 1ccf540c
 005041c8 0089ac2f fcffffff fffe793c 1cc95408
 00504240 0089ac2f fcffffff fffdf6fb 1cc95408
 00504240 0089ac2f fcffffff fffe793c 1cc95408
+c8102048 00992c2f fc26a004 1ffc93fc 1806008c
+0c192078 0098ac2f fc272c04 1f1093ff 088e000c
+c81049d8 00992c6f fc26a004 1ffc93fd 1806008c
+0c184e50 00992c6f fc26a004 1f1493ff 1806008c
+c81049d8 0099ec6f fc26a004 1ffc93fd 18060088
+c8102078 0099ac2f fcffffff fffe7838 1888000c
+c8102078 0098ac2f fcffffff fffe7838 0800000c
+c8102078 0098ac2f fc1219ff fffffe38 088a000c
+00504dd8 008c2caf fc121824 ff33ffff 0ccb5408
+00504340 00812c2f fc119623 ff2fffff 1ccb540b
+00504340 00802c2f fc119623 ff2fffff 0ccb540b
+c8102078 0098ec6f fcffffff fffe7838 0800000c
+c8102078 0098ac6f fcffffff fffe7838 0800000c
+c8102078 00992c6f fcffffff fffe7838 1888000c
+c8102078 0099ac6f fcffffff fffe7838 1888000c
+c8102078 0099ac6f fcffffff fffe7838 1801100c
+c8102078 0099ac6f fcffffff fffe7838 1800440c
+c8102078 0099ac6f fcffffff fffe7838 1801540c
+c8102078 0099ac6f fcffffff fffe7838 1cc9540c
+c8102078 009d2c6f fc26e404 1ffcfffc 188e000c
+c8102078 0099ec6f fc26a004 1ffc93fc 1806008c
 section facility
 c4112078 00992c2f fc26a004 1f1093fb 1806008c
 c4112078 0099ec2f fc26a004 1f1093fb 18060088
