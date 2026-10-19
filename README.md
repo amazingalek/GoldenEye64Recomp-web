@@ -129,4 +129,6 @@ played by hand.
   crouch, aim mode and watch read from RDRAM: in both the mouse turns him the way the stick does, up looks up, the
   crosshair follows the mouse, the edge turns the view that way, and the watch takes no motion; in Chrome the crouch
   lasts through aim mode and fire, reload and the wheel work. Neither browser gave those runs the pointer lock, so how
-  it feels, and the lock itself, are left to a play by hand.
+  it feels, and the lock itself, are left to a play by hand. In file select, in both, the cursor follows the mouse
+  (0.25 menu units a count at 50%) and a left click opens the folder; with Invert Mouse Y on, mouse up looks down in
+  Dam while the menu cursor still follows the mouse as it moves.
