@@ -19,6 +19,8 @@
 #define PLAYER_VV_THETA PLAYER_FIELD(f32, 0x148)
 #define PLAYER_VV_VERTA PLAYER_FIELD(f32, 0x158)
 #define PLAYER_INSIGHTAIMMODE PLAYER_FIELD(s32, 0x124)
+#define PLAYER_OUTSIDE_WATCH_MENU PLAYER_FIELD(s32, 0x1CC)
+#define PLAYER_PAUSING PLAYER_FIELD(s32, 0x200)
 
 #define CROUCH_SQUAT 0
 #define CROUCH_STAND 2
@@ -92,8 +94,7 @@ static void turn_view(f32 degrees_right, f32 degrees_up) {
     PLAYER_VV_VERTA = clampf(PLAYER_VV_VERTA + degrees_up, -90.0f, 90.0f);
 }
 
-static void apply_pc_actions(void) {
-    u32 actions = recomp_get_pc_actions();
+static void apply_pc_actions(u32 actions) {
     if (actions & PC_ACTION_RELOAD) {
         attempt_reload_item_in_hand(GUNRIGHT);
         attempt_reload_item_in_hand(GUNLEFT);
@@ -123,13 +124,25 @@ static void apply_pc_actions(void) {
     }
 }
 
+// Takes this tick's motion and actions, and performs the actions. The game reads Bond's controls while the watch is up
+// and while his arm raises or lowers it too: what comes then is dropped, or the mouse would turn him behind the watch.
+static void take_mouse(f32* dx, f32* dy) {
+    u32 actions = recomp_get_pc_actions();
+    recomp_take_mouse_look(dx, dy);
+    if (!PLAYER_OUTSIDE_WATCH_MENU || PLAYER_PAUSING) {
+        actions = 0;
+        *dx = 0.0f;
+        *dy = 0.0f;
+    }
+    apply_pc_actions(actions);
+}
+
 // Outside aim mode: x and y are the crosshair's sway, speed its damping.
 RECOMP_PATCH void sub_GAME_7F067F58(f32 x, f32 y, f32 speed) {
     void* stats = get_ptr_item_statistics(getCurrentPlayerWeaponId(GUNRIGHT));
     f32 dx, dy;
 
-    apply_pc_actions();
-    recomp_take_mouse_look(&dx, &dy);
+    take_mouse(&dx, &dy);
     if (dx != 0.0f || dy != 0.0f) {
         f32 scale = LOOK_DEGREES_PER_COUNT * zoom_scale();
         turn_view(dx * scale, -dy * scale);
@@ -151,8 +164,7 @@ RECOMP_PATCH void sub_GAME_7F067FBC(f32 x, f32 y) {
     f32 crosshair_speed = ITEM_CROSSHAIR_SPEED(stats);
     f32 dx, dy;
 
-    apply_pc_actions();
-    recomp_take_mouse_look(&dx, &dy);
+    take_mouse(&dx, &dy);
     if (dx != 0.0f || dy != 0.0f) {
         f32 travel = AIM_TRAVEL_PER_COUNT * zoom_scale();
         aim_x = clampf(aim_x + dx * travel, -1.0f, 1.0f);
