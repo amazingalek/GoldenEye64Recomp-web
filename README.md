@@ -37,105 +37,69 @@ ROM you load, so the launcher takes the retail dump as it is.
 ## Status
 
 - Native (Windows, clang-cl): the launcher, the gun-barrel intro and the attract demo.
-- The page, in headless Chrome (2026-10-12): the launcher, Load ROM with the retail dump, the intro and its
-  credits, the menus, and Dam walked on the keyboard, at the game's 60 retraces a second, with sound on the browser's
-  audio thread (about 2% of its frames came up short there, under heavy CPU load). No real gamepad tried.
-- Played from the published page (main 775e1b3, N64Recomp-browser 7b80155) on 2026-10-14 (RTX 2070, an idle host), by
-  `tools/shader_plan.json` with N64Recomp-browser's `tools/play_page.mjs`: the launcher, Load ROM, the boot and Dam
-  in both browsers, with no WebGPU errors. On a first visit a local build of the same commit in headless Chrome 155
-  never waited: it builds the whole list behind the game, all 202 pipelines 72 s after the page opened, and drew 48-60
-  frames a second meanwhile, the credits included (7-36 on v0.28.0, before rt64-web 6734747 paced presents only while
-  the GPU falls behind), about 2% of the sound short. Firefox 158 waited 8.1 s for the boot's 59 and 13.4 s for Dam's
-  53, and then drew 60, about 2% of the sound short. On a 3840x2000 canvas, the stand-in for integrated graphics,
-  Chrome never waited and drew 53-59, 6% of the sound short; Firefox waited 8-9 s and then drew 52-61 in one run,
-  10% short; in another, alone on the GPU, it presented 171 a second for 5 s as the wait ended, the GPU's memory up
-  3.5 GB, then logged "Out of Memory" and drew 22-30 (Firefox's animation frames come in bursts there, which the page
-  reads as a faster display).
-  On the page built on N64Recomp-browser b1c35d1 (main 97f81af), 2026-10-14, the same canvas, an idle host, one page
-  at a time: Firefox 158 waited 8.4 s and then drew 58-60, the memory flat, 8% of the sound short; Chrome 155 never
-  waited and drew 52-56, 8% short.
-  About 2% of that, a steady 960 frames a second, was the game's audio manager making every buffer its minimum
-  (`get_frames_remaining` in `src/main/main.cpp` says why); since main 59dc8e8 it writes 48,000 frames a second and
-  plays without a gap between the boot's shader wait and its first burst. A/B on 2026-10-14, the same canvas, a cold
-  profile each, an idle host: frames short per 5 s from 4,800 to 0 in both browsers outside the bursts; Firefox 158
-  161k short in 45 s before, 136k after. What was left then: in Firefox about 0.4 s at a few fixed moments of the boot, and
-  in Chrome, in some cold runs before and after, ~20% for ~40 s while the shader list builds behind the game.
-  On the page built on N64Recomp-browser ed8764a (v0.36.0, main 0ceb0be), 2026-10-14, the same canvas, an idle host,
-  one page at a time, the boot, the credits and the attract demo's Runway: Firefox 158 waited 8.4 s and then drew 60
-  through the boot and the credits, about 0.4 s of sound short three times, then waited 12.6 s for Runway and drew
-  44-51 there; Chrome 155 never waited and drew 45-60 until all 202 were built at 65 s, 2.7 s of sound short meanwhile,
-  then 60. rt64's pacing never switched on.
-  Played again from the page built on N64Recomp-browser 2efc795 (rt64-web 9ed449d, main e8aa16e) on 2026-10-14, on that
-  canvas, a quiet host, one page at a time, 25 s after the waits: Firefox 158 waited 8.6 s for the boot and then
-  drew 57-59, Chrome 155 never waited and drew 56-57, rt64's pacing never on, no sound short, no WebGPU errors.
-  Those bursts and Chrome's 20% were the main loop's wait for its next tick (`patches/fps.c`), which polled the count
-  without an OS call: on the console the scheduler and the audio thread preempt it, and here they waited behind it.
-  The intro's copy of it waits as long as the frame before took, so one slow frame (a shader built behind the game, a
-  load) held every frame of the intro to that length, the main thread polling 85% of the time, ~1.5 million counts a
-  second, and the audio thread getting in every ~85 ms instead of 33. Each poll yields now. Local builds on
-  N64Recomp-browser b1c35d1, with and without that, 2026-10-14, a cold profile each, alone on the GPU: Chrome 155
-  headless at 1256x645, 0 frames short in 85 s in each of three runs, against 630k (~20% for ~40 s) without it;
-  Firefox 158 at 3840x2000, 0 short in 95 s, against 27k, 67k and 28k in three 5 s windows. From Pages (main
-  e8aa16e, N64Recomp-browser 2efc795), 2026-10-14, 3840x2000, a cold profile each, alone on the GPU, an idle host,
-  the boot and the credits playing by themselves: Chrome 155 never waited and drew 55-60 a second while all 202 built
-  (77 s in), Firefox 158 waited 8.5 s and then drew 58-60, 0 frames of sound short in 60 s in both after the first
-  second, and no WebGPU errors.
+- The page: the launcher, Load ROM with the retail dump, the intro and its credits, the menus, and Dam walked on the
+  keyboard, at the game's 60 retraces a second, with sound on the browser's audio thread. No real gamepad tried. How
+  it plays, in which browser and on what graphics, is recorded in N64Recomp-browser's
+  [plays.jsonl](https://github.com/amazingalek/N64Recomp-browser/blob/main/plays.jsonl) and its
+  [games table](https://github.com/amazingalek/N64Recomp-browser#games).
+- A steady 960 frames a second of the sound, about 2%, came up short in both browsers and natively: the game's audio
+  manager made every buffer its minimum (`get_frames_remaining` in `src/main/main.cpp` says why). Since main 59dc8e8 it
+  writes 48,000 frames a second and plays without a gap between the boot's shader wait and its first burst: on a
+  3840x2000 canvas, a cold profile each, frames short per 5 s went from 4,800 to 0 in both browsers outside the bursts,
+  and Firefox 158's from 161k in 45 s to 136k.
+- The bursts were the main loop's wait for its next tick (`patches/fps.c`), which polled the count without an OS call:
+  on the console the scheduler and the audio thread preempt it, and here they waited behind it. In Firefox that was
+  about 0.4 s at a few fixed moments of the boot, and in Chrome, in some cold runs, ~20% for ~40 s while the shader list
+  builds behind the game. The intro's copy of the wait lasts as long as the frame before took, so one slow frame (a
+  shader built behind the game, a load) held every frame of the intro to that length, the main thread polling 85% of
+  the time, ~1.5 million counts a second, and the audio thread getting in every ~85 ms instead of 33. Each poll yields
+  now (main 7f40089). With and without it, cold, alone on the GPU: Chrome 155 headless at 1256x645 had 0 frames short
+  in 85 s in each of three runs, against 630k (~20% for ~40 s) without it; Firefox 158 at 3840x2000 0 short in 95 s,
+  against 27k, 67k and 28k in three 5 s windows.
 - The page builds the game's shaders before it draws with them, so weak graphics don't draw with RT64's slow general
   shader: the 465 in `src/rt64_shaders.txt`, recorded by a script that plays the intro and the credits, shows every
-  menu and starts every level (`tools/record_shaders.sh`), are built a part at a time with the game waiting under
-  "Preparing graphics": the intro's and the menus' before the game starts, and each level's when the level first
-  draws. Cold in Chrome 155 (2026-10-13, RTX 2070, headless) the menus took 2.5 s and Dam 6.6 s, and with the intro
-  5.0 s against the menus' 3.9 s on a busier host; on a later visit 0.3 s and 4.5 s, since Chrome's cache holds
-  only part of them. The script records each level's start, so a shader a level draws later is built when it first
-  draws, and the page remembers it and builds it with that level on the next visit.
+  menu and starts every level (`tools/record_shaders.sh`), are built a part at a time: the intro's and the menus'
+  before the game starts, and each level's when the level first draws. Chrome's pipeline cache holds only part of
+  them, so a later visit builds most of a level's again. The script records each level's start, so a shader a level
+  draws later is built when it first draws, and the page remembers it and builds it with that level on the next visit.
 - Render to RAM stays on: the game reads a frame back 3-33 times a second (up to 120 in some scenes), each read
   waiting for the GPU. The page copies a frame into RDRAM a display list late (rt64-web 73e9ca0): in Dam 3.8-5.2 ms a
-  list against 8.0-9.7 with the exact copy, the lamps' glare still drawn (headless Chrome 155, RTX 2070, 2026-10-13).
-- Firefox, on a laptop's Intel UHD (scripted first visits, 2026-10-13, before N64Recomp-browser v0.21.0): the
-  intro's blood overlay, whose shaders the first section didn't hold then, drew ~180 draws a frame with RT64's
-  ubershader, which halved the frame rate, and in 3 of 3 runs that reached it the game then fell to about a frame a
-  second for good, each frame waiting on its readback. Firefox looks for finished GPU work only after a submission or
-  every 100 ms, and since v0.21.0 the page submits nothing once a millisecond while a readback waits (rt64-web
-  d070e5c): those runs then kept 28-45 frames a second and a second visit never fell. The first section now holds
-  the intro and the cast credits. On an RTX 2070 slowed by a heavy pass added to every present, d070e5c took Firefox
-  from 33-37 frames a second to 42-45. Firefox builds a section's shaders one at a time and presents nothing
-  meanwhile: the game stood still 23 s for Dam's 55 on a first visit there (RTX 2070).
-- Played on that laptop's Intel UHD (Tiger Lake, Windows 11 in its best power efficiency mode) on 2026-10-14, from the
-  published page (main e8aa16e, N64Recomp-browser 2efc795), by `tools/shader_plan.json` (`--play 90` and `--section
-  dam`) with N64Recomp-browser's `play_page.mjs` at 1256x645, Firefox 158 and headless Chrome 155, a fresh profile
-  each, one page at a time, presents a second as medians after the waits, the RTX beside it drawing nothing: Firefox
-  waited 7.7 s for the boot's 59 and drew 46.7 (24.4-51.0), rt64 pacing it twice to the game's 6 while the logo
-  turned; for Dam it waited 8.5 s and then 11.8 s for the section's 53, about 20 s in all, and drew 56.6 over the rest
-  of the run, about 20 s. Chrome never waited and drew 47.7 and, at Dam, 54.7. The Intel chip 27-48% busy, no sound
-  short, no WebGPU errors.
-- Played again from the page built on N64Recomp-browser d3b9031 (N64ModernRuntime-web f0e0884, RecompFrontend-web
-  75fe596, rt64-web f34b19c; main 82b2a37, gh-pages bf095ed) on 2026-10-15, its files served locally with the
-  cross-origin headers, RTX 2070, 1256x645, a fresh profile each, the host's every core busy with other work, the boot
-  and then 40 s with `play_page.mjs`: headless Chrome 155 never waited and drew 56.8 presents a second (median),
-  Firefox 158 waited 18.9 s for the boot's 59 and then drew 58.8. No sound short, no WebGPU errors or exceptions in
-  either.
-- Played again from Pages, built on N64Recomp-browser 7277a2e (rt64-web 8bea892, tile copies reused from one display
-  list to the next; main b94f28f, gh-pages bff2ce6) on 2026-10-15, RTX 2070, 1256x645, a fresh profile each, the host's
-  every core busy with other work, by `tools/shader_plan.json`'s `dam` section with `play_page.mjs`: headless Chrome 155
-  never waited and drew 58.3 presents a second (median), Firefox 158 waited 8.3 s for the boot's 59 and 14.4 s for Dam's
-  52 and drew 59.9. No sound short, no WebGPU errors in either. Firefox's one exception is the first load's wasm fetch,
-  cut off by `coi_serviceworker.js`'s reload.
-- Firefox builds the shaders one at a time and presents nothing meanwhile, so its waits are the WGSL's size: since
+  list against 8.0-9.7 with the exact copy, the lamps' glare still drawn (headless Chrome 155, RTX 2070).
+- Firefox looks for finished GPU work only after a submission or every 100 ms, so a frame that waits on its readback
+  can wait that long. On a laptop's Intel UHD, before N64Recomp-browser v0.21.0, the intro's blood overlay, whose
+  shaders the first section didn't hold then, drew ~180 draws a frame with RT64's ubershader, which halved the frame
+  rate, and in 3 of 3 scripted first visits that reached it the game then fell to about a frame a second for good, each
+  frame waiting on its readback. The page submits nothing once a millisecond while a readback waits (rt64-web
+  d070e5c): those visits then kept 28-45 frames a second and a second visit never fell. On an RTX 2070 slowed by a
+  heavy pass added to every present, d070e5c took Firefox from 33-37 frames a second to 42-45. The first section now
+  holds the intro and the cast credits.
+- Firefox builds the shaders one at a time and presents nothing meanwhile, so its waits are the WGSL's size. Since
   rt64-web b052049 (N64Recomp-browser v0.41.0) a pixel shader that picks its tile per pixel (mip LOD) loads a level's
   four taps in one switch over the draw's slots instead of one switch a tap, the list's WGSL 19.0 → 16.3 MB and the
-  largest RasterPS 224 → 185 KB. Firefox 158 waited 8.7-9.4 s for the boot and 14.0-21.7 s for Dam with it, against
-  10.4-11.6 and 17.7-23.3 from the page then on Pages without it (RTX 2070, 1256x645, a fresh profile each, three runs
-  each, interleaved, beside another program's game on the GPU), 2026-10-15.
-- What holds Chrome below 60 in the levels on a big canvas is the levels' own drawing, not the shaders: from Pages in
-  Chrome 155 with a window (`play_page.mjs --headed`) at 3840x2000, 2026-10-15, it drew 52-58 while the list built
-  behind the game, 59-60 in the title and the credits once all 202 were built (88 s), and then 48-55 in the attract
-  demo's levels with nothing left to build and the GPU 75-78% busy.
-- Played from Pages on N64Recomp-browser v0.42.0 (main 32e74b6) on 2026-10-15, RTX 2070, a fresh profile each, one
-  page at a time, by `tools/shader_plan.json` with `play_page.mjs`: at 1256x645 through `dam`, headless Chrome 155
-  never waited and drew 59.8 presents a second (median); at 3840x2000, the boot and the credits for 60 s, Chrome never
-  waited and drew 58.1 and Firefox 158 waited 7.3 s for the boot's 59 and drew 58.9. On v0.43.0 (main 168520d, the
-  same code), Firefox at 1256x645 through `dam` waited 7.9 s for the boot and 11.6 s for Dam's 52 and drew 59.3. No
-  sound short and no WebGPU errors in any.
+  largest RasterPS 224 → 185 KB: Firefox 158 waited 8.7-9.4 s for the boot and 14.0-21.7 s for Dam with it, against
+  10.4-11.6 and 17.7-23.3 without (RTX 2070, 1256x645, a fresh profile each, three runs each, interleaved, beside
+  another program's game on the GPU). Since rt64-web 008f380 (v0.50.0) such a shader samples its levels and tiles in
+  loops, and Firefox's waits for the boot and Dam together went from 18.6 s to 10.8 s.
+- What holds Chrome below 60 in the levels on a big canvas is the levels' own drawing, not the shaders: in Chrome 155
+  with a window (`play_page.mjs --headed`) at 3840x2000 it draws 52-58 while the list builds behind the game, 59-60 in
+  the title and the credits once all 202 are built (88 s), and then 48-55 in the attract demo's levels with nothing
+  left to build and the GPU 75-78% busy.
+- In Dam, render to RAM's late copy had the thread that runs the display lists asking at every retrace whether the
+  copy could land, and each question waited behind everything queued on the page's thread. Since plume-web 81344f5
+  and ba93421 (rt64-web a5bc25d) the readback's answer, the swap chain's size and its refresh rate are published by
+  the page's thread and read without waiting. CPU profiles over 13 s in Dam at 3840x2000, Chrome 155 with a window,
+  RTX 2070, a busy host:
+  - The display list thread's waits for the page's thread fell from 2,335 ms to 151 ms.
+  - The present thread's waits fell from 963 ms to 106 ms.
+  - The page's thread fell from 47% busy to 32%.
+
+  Presents stayed at 57-59.5 a second.
+- The 1.6 s with nothing presented after Start on a first visit is the game's own boot: the boss thread's first
+  retraces (~0.6 s), then, with no save yet, `fileValidateSaves` resetting and writing every save to the EEPROM, 48
+  EEPROM calls each between `joyDisablePoll` and `joyEnablePoll`, which wait a retrace for the controller thread
+  (~0.77 s). A second visit has the save and waits 1.05 s (headless Chrome 155, 3840x2000, RTX 2070; N64Recomp-browser's
+  [docs/findings.md](https://github.com/amazingalek/N64Recomp-browser/blob/main/docs/findings.md), Present gaps after
+  Start).
 - Mods a player adds are off on the web (there is no recompiler that emits WebAssembly at run time); natively they
   are supported but untested.
 - cblock85's run-time recompilation of the game from the ROM (`LiveGamecode`) is gone: RecompFrontend's launcher
