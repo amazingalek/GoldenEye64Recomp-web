@@ -6,6 +6,7 @@
 //   which the patches say are up, goes back (B on the pad);
 // - the actions GoldenEye has no N64 button for, which the patches perform: reload (R), crouch (Left Ctrl or C, a
 //   toggle), next and previous weapon (the wheel, down and up);
+// - whether the mouse plays (the pointer locked to the game), which turns the game's auto-aim off;
 // - the motion, gathered from every event until the patches take it, since the frontend keeps only what came since
 //   its last poll and the game reads its controls at its own rate;
 // - the keyboard's default bindings, the Mouse Sensitivity option, on at 50%, and Invert Mouse Y, off.
@@ -164,7 +165,8 @@ void goldeneye::add_mouse_option(recomp::config::Config& general) {
         "<br />"
         "<br />"
         "Left click fires and right click aims: it shows the crosshair and zooms the weapons that zoom, and Bond moves "
-        "as he does without it, with shots going to the middle of the screen. The wheel changes weapon, or zooms the "
+        "as he does without it, with shots going to the middle of the screen. The game's Auto-Aim is off while the mouse "
+        "plays, so shots go where it points. The wheel changes weapon, or zooms the "
         "sniper rifle while aiming. R reloads and Left Ctrl or C crouches. In the game's menus left click selects and "
         "right click goes back.",
         50.0
@@ -242,6 +244,10 @@ extern "C" void recomp_mouse_menu_shown(uint8_t* rdram, recomp_context* ctx) {
 
 extern "C" void recomp_mouse_aim_held(uint8_t* rdram, recomp_context* ctx) {
     _return<int32_t>(ctx, right_click_held() && !menu_shown() ? 1 : 0);
+}
+
+extern "C" void recomp_mouse_playing(uint8_t* rdram, recomp_context* ctx) {
+    _return<int32_t>(ctx, game_has_mouse() ? 1 : 0);
 }
 
 extern "C" void recomp_mouse_invert_y(uint8_t* rdram, recomp_context* ctx) {

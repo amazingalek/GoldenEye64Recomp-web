@@ -12,6 +12,10 @@
 // are put back where the game decides them each tick: the crosshair after the game hides it, the zoom where it picks
 // the view's. R itself (Left Shift, a pad's R) is still the game's aim mode.
 //
+// The game's auto-aim (the Auto-Aim option) is off while the mouse plays: outside aim mode it moves the crosshair, and
+// where the gun fires, onto a target near the middle of the screen, which takes the aim from the mouse. With a pad, or
+// the pointer free, the saved option is as it was.
+//
 // The keys and the wheel's actions beyond the N64's buttons (reload, crouch, next and previous weapon) come from the
 // program (src/game/mouse_keyboard.cpp), which also puts left click on the pad (fire) and says whether right click is
 // held. Invert Mouse Y flips the mouse's up and down for looking and aiming.
@@ -31,6 +35,8 @@
 #define PLAYER_VV_THETA PLAYER_FIELD(f32, 0x148)
 #define PLAYER_VV_VERTA PLAYER_FIELD(f32, 0x158)
 #define PLAYER_INSIGHTAIMMODE PLAYER_FIELD(s32, 0x124)
+#define PLAYER_AUTOYAIMENABLED PLAYER_FIELD(s32, 0x128)
+#define PLAYER_AUTOXAIMENABLED PLAYER_FIELD(s32, 0x138)
 #define PLAYER_WATCH_ANIMATION_STATE PLAYER_FIELD(s32, 0x1C8)
 #define PLAYER_OUTSIDE_WATCH_MENU PLAYER_FIELD(s32, 0x1CC)
 #define PLAYER_PAUSING PLAYER_FIELD(s32, 0x200)
@@ -64,6 +70,7 @@ s32 recomp_mouse_look_enabled(void);
 s32 recomp_mouse_invert_y(void);
 void recomp_mouse_menu_shown(void);
 s32 recomp_mouse_aim_held(void);
+s32 recomp_mouse_playing(void);
 
 s32 getCurrentPlayerWeaponId(s32 hand);
 void* get_ptr_item_statistics(s32 item);
@@ -238,6 +245,23 @@ RECOMP_PATCH void bondviewTriggerWatchZoom(f32 fovy) {
 // mouse looks, the saved option as it was.
 RECOMP_PATCH void currentPlayerSetLookAheadSetting(s32 setting) {
     PLAYER_LOOKAHEAD = recomp_mouse_look_enabled() ? 0 : setting;
+}
+
+// Whether auto-aim moves the crosshair up and down, and across, to its target. Off while the mouse plays (the pointer
+// locked to the game); otherwise as the original has it, the option a level started with in single player and the
+// player's setting in multiplayer.
+RECOMP_PATCH bool currentPlayerGetYAutoAimEnabled(void) {
+    if (recomp_mouse_playing()) {
+        return FALSE;
+    }
+    return getPlayerCount() == 1 ? PLAYER_AUTOYAIMENABLED : g_playerPerm->autoaim;
+}
+
+RECOMP_PATCH bool currentPlayerGetXAutoAimEnabled(void) {
+    if (recomp_mouse_playing()) {
+        return FALSE;
+    }
+    return getPlayerCount() == 1 ? PLAYER_AUTOXAIMENABLED : g_playerPerm->autoaim;
 }
 
 // How far the stick moves the menu cursor this tick along one axis.
