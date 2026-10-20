@@ -120,6 +120,9 @@ played by hand.
   game's aim mode (R), which would stop him: there the stick moves the crosshair instead of walking him and C-left and
   C-right lean. While it aims the sniper rifle or the camera, the wheel zooms it further, up in and down out. Mouse up
   looks up, whatever the game's Look Up/Down option says, unless Settings > General > Invert Mouse Y is on.
+- The game's auto-aim (its Auto-Aim option) is off while the mouse plays, the pointer locked to the game: shots go
+  where the mouse points, and right click's crosshair stays in the middle, rather than onto a guard near it. With a pad,
+  or Mouse Sensitivity at 0, the saved option is as it was.
 - In the menus' folders (file, mission and difficulty select) the mouse moves the game's cursor, as the stick does, left
   click selects and right click goes back, as B does.
 - Left click fires (also F), right click aims, the wheel changes weapon, R reloads, and Left Ctrl or C crouches, a
@@ -143,3 +146,6 @@ played by hand.
   and W, D and S move him as far as without it (W for 1.5 s about 670 units either way, where the earlier aim mode
   moved him none); with the sniper rifle (All Guns on) it zooms to 15 degrees, three notches of the wheel up take that
   to 7.7 and one down to 9.6, he walks while zoomed, and letting go puts back 60 and hides the crosshair.
+- Auto-aim with the mouse, played in Dam in Chrome and Firefox with right click held while Bond walks, strafes and turns
+  past the guards, the player's auto-aim targets read from RDRAM 20 times a second: before, auto-aim had a target in 68
+  of 970 samples in Chrome; now in none of 981 in Chrome and 918 in Firefox, with the option still saved on.
