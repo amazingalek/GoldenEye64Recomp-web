@@ -51,8 +51,10 @@ namespace {
     // When a menu last showed its cursor: one did a tick ago at most while it is up, so for as long as motion stays
     // fresh after it.
     std::chrono::steady_clock::time_point last_menu{};
-    // When the patches last said Bond drives the tank outside aim mode: each tick he does.
-    std::chrono::steady_clock::time_point last_tank{};
+    // Whether Bond drives the tank outside aim mode, as the patches say each tick he can move, until a menu shows. Not a
+    // time, as last_menu is: a slow frame (Firefox building shaders as the tank turns) would let C-right through to the
+    // turret.
+    bool driving_tank = false;
     int pending_actions[4] = {};
 
     bool game_has_mouse() {
@@ -66,11 +68,6 @@ namespace {
     bool menu_shown() {
         std::lock_guard lock{ pending_mutex };
         return std::chrono::steady_clock::now() - last_menu < stale_motion;
-    }
-
-    bool driving_tank() {
-        std::lock_guard lock{ pending_mutex };
-        return std::chrono::steady_clock::now() - last_tank < stale_motion;
     }
 
     void queue_action(int index) {
@@ -202,7 +199,12 @@ bool goldeneye::get_input(int controller_num, uint16_t* buttons_out, float* x_ou
         }
         // The tank turns with the stick's left and right; the C-buttons would only swing its turret, which the mouse
         // does.
-        if (driving_tank()) {
+        bool tank;
+        {
+            std::lock_guard lock{ pending_mutex };
+            tank = driving_tank;
+        }
+        if (tank) {
             if (*buttons_out & n64_button_c_left) {
                 *x_out -= 1.0f;
             }
@@ -263,11 +265,12 @@ extern "C" void recomp_mouse_look_enabled(uint8_t* rdram, recomp_context* ctx) {
 extern "C" void recomp_mouse_menu_shown(uint8_t* rdram, recomp_context* ctx) {
     std::lock_guard lock{ pending_mutex };
     last_menu = std::chrono::steady_clock::now();
+    driving_tank = false;
 }
 
 extern "C" void recomp_mouse_driving_tank(uint8_t* rdram, recomp_context* ctx) {
     std::lock_guard lock{ pending_mutex };
-    last_tank = std::chrono::steady_clock::now();
+    driving_tank = _arg<0, int32_t>(rdram, ctx) != 0;
 }
 
 extern "C" void recomp_mouse_aim_held(uint8_t* rdram, recomp_context* ctx) {

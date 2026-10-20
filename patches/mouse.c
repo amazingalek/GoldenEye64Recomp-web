@@ -76,7 +76,7 @@ s32 recomp_mouse_invert_y(void);
 void recomp_mouse_menu_shown(void);
 s32 recomp_mouse_aim_held(void);
 s32 recomp_mouse_playing(void);
-void recomp_mouse_driving_tank(void);
+void recomp_mouse_driving_tank(s32 driving);
 
 s32 getCurrentPlayerWeaponId(s32 hand);
 void* get_ptr_item_statistics(s32 item);
@@ -215,9 +215,7 @@ static void take_mouse(void) {
     u32 actions = recomp_get_pc_actions();
     f32 dx, dy;
     recomp_take_mouse_look(&dx, &dy);
-    if (g_PlayerIsInTank == 1 && !PLAYER_INSIGHTAIMMODE) {
-        recomp_mouse_driving_tank();
-    }
+    recomp_mouse_driving_tank(g_PlayerIsInTank == 1 && !PLAYER_INSIGHTAIMMODE);
     if (!PLAYER_OUTSIDE_WATCH_MENU || PLAYER_PAUSING) {
         actions = 0;
     } else if (dx != 0.0f || dy != 0.0f) {
