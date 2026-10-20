@@ -2,7 +2,7 @@
 // side is patches/mouse.c, and this is the program's. RecompFrontend binds keys and a pad's buttons to the N64's
 // buttons, and gives a game the mouse's motion; the rest is here, read from SDL:
 // - the mouse's buttons on the pad: left fires (Z), right aims (R: the crosshair, and the zoom of the weapons that
-//   zoom, while the mouse still turns Bond);
+//   zoom, while the mouse still turns Bond), and in the game's menus, which the patches say are up, goes back (B);
 // - the actions GoldenEye has no N64 button for, which the patches perform: reload (R), crouch (Left Ctrl or C, a
 //   toggle), next and previous weapon (the wheel, down and up);
 // - the motion, gathered from every event until the patches take it, since the frontend keeps only what came since
@@ -44,6 +44,9 @@ namespace {
     float pending_dy = 0.0f;
     std::chrono::steady_clock::time_point last_take{};
     std::chrono::steady_clock::time_point last_actions_take{};
+    // When a menu last showed its cursor: one did a tick ago at most while it is up, so for as long as motion stays
+    // fresh after it.
+    std::chrono::steady_clock::time_point last_menu{};
     int pending_actions[4] = {};
 
     bool game_has_mouse() {
@@ -115,6 +118,7 @@ namespace {
 }
 
 // The N64's buttons as a pad reports them.
+constexpr uint16_t n64_button_b = 0x4000;
 constexpr uint16_t n64_button_z = 0x2000;
 constexpr uint16_t n64_button_r = 0x0010;
 
@@ -150,7 +154,8 @@ void goldeneye::add_mouse_option(recomp::config::Config& general) {
         "<br />"
         "<br />"
         "Left click fires and right click aims: it shows the crosshair and zooms the weapons that zoom, and shots go to the "
-        "middle of the screen. The wheel changes weapon, R reloads and Left Ctrl or C crouches.",
+        "middle of the screen. The wheel changes weapon, R reloads and Left Ctrl or C crouches. In the game's menus "
+        "left click selects and right click goes back.",
         50.0
     );
     general.add_enum_option(
@@ -170,7 +175,12 @@ bool goldeneye::get_input(int controller_num, uint16_t* buttons_out, float* x_ou
             *buttons_out |= n64_button_z;
         }
         if (mouse_buttons & SDL_BUTTON(SDL_BUTTON_RIGHT)) {
-            *buttons_out |= n64_button_r;
+            bool in_menu;
+            {
+                std::lock_guard lock{ pending_mutex };
+                in_menu = std::chrono::steady_clock::now() - last_menu < stale_motion;
+            }
+            *buttons_out |= in_menu ? n64_button_b : n64_button_r;
         }
     }
     return ret;
@@ -218,6 +228,11 @@ extern "C" void recomp_get_pc_actions(uint8_t* rdram, recomp_context* ctx) {
 
 extern "C" void recomp_mouse_look_enabled(uint8_t* rdram, recomp_context* ctx) {
     _return<int32_t>(ctx, mouse_sensitivity() > 0.0f ? 1 : 0);
+}
+
+extern "C" void recomp_mouse_menu_shown(uint8_t* rdram, recomp_context* ctx) {
+    std::lock_guard lock{ pending_mutex };
+    last_menu = std::chrono::steady_clock::now();
 }
 
 extern "C" void recomp_mouse_invert_y(uint8_t* rdram, recomp_context* ctx) {

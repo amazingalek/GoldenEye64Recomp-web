@@ -11,7 +11,7 @@
 // mouse's up and down for looking and aiming.
 //
 // In the front end's folders (file, mission and difficulty select) the mouse moves the menus' own cursor as the stick
-// does, and its left click selects, since the menus take Z as they take A.
+// does, its left click selects, since the menus take Z as they take A, and its right click goes back, as B does.
 //
 // The game calls one of two functions each tick it reads Bond's controls, with the crosshair's input: sub_GAME_7F067F58
 // outside aim mode and sub_GAME_7F067FBC in it. Both are patched here to turn the view by the mouse; each passes the
@@ -48,6 +48,7 @@ void recomp_take_mouse_look(f32* dx, f32* dy);
 u32 recomp_get_pc_actions(void);
 s32 recomp_mouse_look_enabled(void);
 s32 recomp_mouse_invert_y(void);
+void recomp_mouse_menu_shown(void);
 
 s32 getCurrentPlayerWeaponId(s32 hand);
 void* get_ptr_item_statistics(s32 item);
@@ -196,9 +197,10 @@ static f32 menu_stick_travel(s32 v) {
 }
 
 // The menus' cursor, each tick a menu shows it: the stick moves it (the stick's y up, the cursor's down), and the mouse
-// too.
+// too. Every menu with a way back shows it, so this also tells the program a menu is up, where right click is B.
 RECOMP_PATCH void frontUpdateControlStickPosition(void) {
     f32 dx, dy;
+    recomp_mouse_menu_shown();
     recomp_take_mouse_look(&dx, &dy);
 
     f32 left = getPlayer_c_screenleft();

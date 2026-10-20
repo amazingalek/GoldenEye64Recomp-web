@@ -72,3 +72,4 @@ recomp_take_mouse_look = 0x8F000114;
 recomp_get_pc_actions = 0x8F000118;
 recomp_mouse_look_enabled = 0x8F00011C;
 recomp_mouse_invert_y = 0x8F000120;
+recomp_mouse_menu_shown = 0x8F000124;
