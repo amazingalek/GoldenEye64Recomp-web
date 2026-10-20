@@ -1,8 +1,9 @@
 // Keyboard and mouse as the PC ports play GoldenEye (the README compares them with the Perfect Dark port): the game's
 // side is patches/mouse.c, and this is the program's. RecompFrontend binds keys and a pad's buttons to the N64's
 // buttons, and gives a game the mouse's motion; the rest is here, read from SDL:
-// - the mouse's buttons on the pad: left fires (Z), right aims (R: the crosshair, and the zoom of the weapons that
-//   zoom, while the mouse still turns Bond), and in the game's menus, which the patches say are up, goes back (B);
+// - the mouse's buttons: left fires (Z on the pad), right aims, which the patches ask about (the crosshair and the zoom
+//   of the weapons that zoom, and nothing else: not the game's aim mode, R, which stops Bond), and in the game's menus,
+//   which the patches say are up, goes back (B on the pad);
 // - the actions GoldenEye has no N64 button for, which the patches perform: reload (R), crouch (Left Ctrl or C, a
 //   toggle), next and previous weapon (the wheel, down and up);
 // - the motion, gathered from every event until the patches take it, since the frontend keeps only what came since
@@ -51,6 +52,15 @@ namespace {
 
     bool game_has_mouse() {
         return !recompinput::game_input_disabled() && SDL_GetRelativeMouseMode() == SDL_TRUE;
+    }
+
+    bool right_click_held() {
+        return game_has_mouse() && (SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON(SDL_BUTTON_RIGHT)) != 0;
+    }
+
+    bool menu_shown() {
+        std::lock_guard lock{ pending_mutex };
+        return std::chrono::steady_clock::now() - last_menu < stale_motion;
     }
 
     void queue_action(int index) {
@@ -120,12 +130,12 @@ namespace {
 // The N64's buttons as a pad reports them.
 constexpr uint16_t n64_button_b = 0x4000;
 constexpr uint16_t n64_button_z = 0x2000;
-constexpr uint16_t n64_button_r = 0x0010;
 
 void goldeneye::init_mouse_keyboard() {
     using recompinput::GameInput;
     // As the PC ports have it: WASD walks and strafes, the arrows turn and look, the mouse looks and its buttons fire
-    // (also F) and aim (also Left Shift); Space and the wheel change weapon, E uses, Return or Tab is Start.
+    // (also F) and aim; Left Shift is R, the game's own aim mode; Space and the wheel change weapon, E uses, Return or
+    // Tab is Start.
     set_keyboard(GameInput::Y_AXIS_POS, { SDL_SCANCODE_W });
     set_keyboard(GameInput::Y_AXIS_NEG, { SDL_SCANCODE_S });
     set_keyboard(GameInput::C_LEFT, { SDL_SCANCODE_A });
@@ -153,9 +163,10 @@ void goldeneye::add_mouse_option(recomp::config::Config& general) {
         "Perfect Dark PC port's default does. <b>Setting this to zero turns mouse look off</b> and frees the pointer."
         "<br />"
         "<br />"
-        "Left click fires and right click aims: it shows the crosshair and zooms the weapons that zoom, and shots go to the "
-        "middle of the screen. The wheel changes weapon, R reloads and Left Ctrl or C crouches. In the game's menus "
-        "left click selects and right click goes back.",
+        "Left click fires and right click aims: it shows the crosshair and zooms the weapons that zoom, and Bond moves "
+        "as he does without it, with shots going to the middle of the screen. The wheel changes weapon, or zooms the "
+        "sniper rifle while aiming. R reloads and Left Ctrl or C crouches. In the game's menus left click selects and "
+        "right click goes back.",
         50.0
     );
     general.add_enum_option(
@@ -170,17 +181,11 @@ void goldeneye::add_mouse_option(recomp::config::Config& general) {
 bool goldeneye::get_input(int controller_num, uint16_t* buttons_out, float* x_out, float* y_out) {
     bool ret = recompinput::profiles::get_n64_input(controller_num, buttons_out, x_out, y_out);
     if (controller_num == 0 && game_has_mouse()) {
-        uint32_t mouse_buttons = SDL_GetMouseState(nullptr, nullptr);
-        if (mouse_buttons & SDL_BUTTON(SDL_BUTTON_LEFT)) {
+        if (SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON(SDL_BUTTON_LEFT)) {
             *buttons_out |= n64_button_z;
         }
-        if (mouse_buttons & SDL_BUTTON(SDL_BUTTON_RIGHT)) {
-            bool in_menu;
-            {
-                std::lock_guard lock{ pending_mutex };
-                in_menu = std::chrono::steady_clock::now() - last_menu < stale_motion;
-            }
-            *buttons_out |= in_menu ? n64_button_b : n64_button_r;
+        if (right_click_held() && menu_shown()) {
+            *buttons_out |= n64_button_b;
         }
     }
     return ret;
@@ -233,6 +238,10 @@ extern "C" void recomp_mouse_look_enabled(uint8_t* rdram, recomp_context* ctx) {
 extern "C" void recomp_mouse_menu_shown(uint8_t* rdram, recomp_context* ctx) {
     std::lock_guard lock{ pending_mutex };
     last_menu = std::chrono::steady_clock::now();
+}
+
+extern "C" void recomp_mouse_aim_held(uint8_t* rdram, recomp_context* ctx) {
+    _return<int32_t>(ctx, right_click_held() && !menu_shown() ? 1 : 0);
 }
 
 extern "C" void recomp_mouse_invert_y(uint8_t* rdram, recomp_context* ctx) {

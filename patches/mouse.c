@@ -2,13 +2,19 @@
 
 // Keyboard and mouse as the PC ports play it (the README compares them with the Perfect Dark port). The mouse turns Bond
 // and tilts his view by an angle a count, as Perfect Dark's port does (0.055 degrees a count at the default 50%, finer
-// as the view zooms), in aim mode as outside it. Aim mode still shows the crosshair and zooms the weapons that zoom,
-// and the mouse leaves the crosshair where the stick puts it, at the centre without one, as Perfect Dark's port's
-// Locked mouse aim and goldeneye-pc-port's Centred aim have it: the game's own aim, the stick moving the crosshair
-// across the screen and the view turning near an edge, adds nothing to a mouse, which already aims. The keys and
-// the wheel's actions beyond the N64's buttons (reload, crouch, next and previous weapon) come from the program
-// (src/game/mouse_keyboard.cpp), which also puts the mouse's buttons on the pad (fire, aim). Invert Mouse Y flips the
-// mouse's up and down for looking and aiming.
+// as the view zooms), aiming or not, and leaves the crosshair where the stick puts it, at the centre without one, as
+// Perfect Dark's port's Locked mouse aim and goldeneye-pc-port's Centred aim have it.
+//
+// Right click aims without the game's aim mode (R): it shows the crosshair and zooms the weapons that zoom, the wheel
+// zooms the sniper rifle and the camera further, and nothing else changes. Aim mode would also stop Bond: the stick
+// (W and S) moves its crosshair instead of walking him, C-left and C-right (A and D) lean instead of strafing, and
+// C-up and C-down crouch. So the game reads Bond's controls as outside aim mode, and the two things right click wants
+// are put back where the game decides them each tick: the crosshair after the game hides it, the zoom where it picks
+// the view's. R itself (Left Shift, a pad's R) is still the game's aim mode.
+//
+// The keys and the wheel's actions beyond the N64's buttons (reload, crouch, next and previous weapon) come from the
+// program (src/game/mouse_keyboard.cpp), which also puts left click on the pad (fire) and says whether right click is
+// held. Invert Mouse Y flips the mouse's up and down for looking and aiming.
 //
 // In the front end's folders (file, mission and difficulty select) the mouse moves the menus' own cursor as the stick
 // does, its left click selects, since the menus take Z as they take A, and its right click goes back, as B does.
@@ -25,8 +31,16 @@
 #define PLAYER_VV_THETA PLAYER_FIELD(f32, 0x148)
 #define PLAYER_VV_VERTA PLAYER_FIELD(f32, 0x158)
 #define PLAYER_INSIGHTAIMMODE PLAYER_FIELD(s32, 0x124)
+#define PLAYER_WATCH_ANIMATION_STATE PLAYER_FIELD(s32, 0x1C8)
 #define PLAYER_OUTSIDE_WATCH_MENU PLAYER_FIELD(s32, 0x1CC)
 #define PLAYER_PAUSING PLAYER_FIELD(s32, 0x200)
+#define PLAYER_ZOOMINFOVY PLAYER_FIELD(f32, 0x11C4)
+
+// The watch's zoom out of it, the view without a weapon's zoom.
+#define DEFAULT_FOVY 60.0f
+// How far one notch of the wheel zooms the sniper rifle or the camera while right click aims: as C-up or C-down held for
+// 2.5 ticks in aim mode, a quarter of the view, so about ten notches cover the scope's 60 to 7 degrees.
+#define WHEEL_ZOOM 2.5f
 
 #define CROUCH_SQUAT 0
 #define CROUCH_STAND 2
@@ -49,11 +63,18 @@ u32 recomp_get_pc_actions(void);
 s32 recomp_mouse_look_enabled(void);
 s32 recomp_mouse_invert_y(void);
 void recomp_mouse_menu_shown(void);
+s32 recomp_mouse_aim_held(void);
 
 s32 getCurrentPlayerWeaponId(s32 hand);
 void* get_ptr_item_statistics(s32 item);
 void caclulate_gun_crosshair_position_rotation(f32 x, f32 y, f32 crosshair_speed, f32 aim_lock_speed);
 f32 getPlayer_c_perspfovy(void);
+s32 get_item_in_hand_or_watch_menu(s32 hand);
+f32 get_item_in_hand_zoom(void);
+void camera_sniper_zoom_in(f32 zoom);
+void camera_sniper_zoom_out(f32 zoom);
+f32 bondviewGetWatchZoomFovy(void);
+void trigger_watch_zoom(f32 fovy, f32 time);
 void currentPlayerAdjustCrouchPos(s32 delta);
 void attempt_reload_item_in_hand(s32 hand);
 void advance_through_inventory(void);
@@ -84,6 +105,11 @@ extern f32 cursor_v_pos;
 // Whether the crouch key has Bond squatting, and the player it was pressed for.
 static s32 key_crouch;
 static void* key_crouch_player;
+
+// Whether right click aims: held, with Bond the player's to move (not behind the watch, nor his arm raising it).
+static s32 mouse_aiming(void) {
+    return recomp_mouse_aim_held() && PLAYER_OUTSIDE_WATCH_MENU && !PLAYER_PAUSING;
+}
 
 static f32 clampf(f32 v, f32 lo, f32 hi) {
     return v < lo ? lo : (v > hi ? hi : v);
@@ -130,6 +156,18 @@ static void apply_pc_actions(u32 actions) {
     if (key_crouch && PLAYER_CROUCHPOS != CROUCH_SQUAT) {
         currentPlayerAdjustCrouchPos(CROUCH_SQUAT - CROUCH_STAND);
     }
+    // While right click aims the sniper rifle or the camera, the wheel zooms it (up in, down out), as C-up and C-down do
+    // in aim mode; otherwise it changes weapon.
+    s32 item = get_item_in_hand_or_watch_menu(GUNRIGHT);
+    if ((item == ITEM_SNIPERRIFLE || item == ITEM_CAMERA) && mouse_aiming()) {
+        if (actions & PC_ACTION_PREV_WEAPON) {
+            camera_sniper_zoom_in(WHEEL_ZOOM);
+        }
+        if (actions & PC_ACTION_NEXT_WEAPON) {
+            camera_sniper_zoom_out(WHEEL_ZOOM);
+        }
+        return;
+    }
     if (actions & PC_ACTION_NEXT_WEAPON) {
         advance_through_inventory();
     }
@@ -154,10 +192,14 @@ static void take_mouse(void) {
     apply_pc_actions(actions);
 }
 
-// Outside aim mode: x and y are the crosshair's sway, speed its damping.
+// Outside aim mode: x and y are the crosshair's sway, speed its damping. The game calls this last of all Bond's
+// controls, after it has hidden the crosshair outside aim mode, so right click shows it again here.
 RECOMP_PATCH void sub_GAME_7F067F58(f32 x, f32 y, f32 speed) {
     void* stats = get_ptr_item_statistics(getCurrentPlayerWeaponId(GUNRIGHT));
     take_mouse();
+    if (mouse_aiming()) {
+        gunSetSightVisible(GUNSIGHTREASON_NOTAIMING, TRUE);
+    }
 
     f32 aim_lock_speed = ITEM_AIM_LOCK_SPEED(stats);
     if (aim_lock_speed < speed) {
@@ -171,6 +213,25 @@ RECOMP_PATCH void sub_GAME_7F067FBC(f32 x, f32 y) {
     void* stats = get_ptr_item_statistics(getCurrentPlayerWeaponId(GUNRIGHT));
     take_mouse();
     caclulate_gun_crosshair_position_rotation(x, y, ITEM_CROSSHAIR_SPEED(stats), ITEM_AIM_LOCK_SPEED(stats));
+}
+
+// Starts the view's zoom towards fovy, as the original does. Each tick Bond's controls ask for the weapon's zoom in aim
+// mode and for the default view outside it, with the watch down: while right click aims, the default becomes the
+// weapon's zoom, as aim mode has it. The watch asks for the default too as it starts to rise, which stays as it is.
+RECOMP_PATCH void bondviewTriggerWatchZoom(f32 fovy) {
+    if (fovy == DEFAULT_FOVY && PLAYER_WATCH_ANIMATION_STATE == 0 && mouse_aiming()) {
+        fovy = get_item_in_hand_zoom();
+        if (fovy <= 0.0f) {
+            fovy = DEFAULT_FOVY;
+        }
+    }
+    if (bondviewGetWatchZoomFovy() != fovy) {
+        if (fovy < PLAYER_ZOOMINFOVY) {
+            trigger_watch_zoom(fovy, ((PLAYER_ZOOMINFOVY - fovy) * 15.0f) / 30.0f);
+            return;
+        }
+        trigger_watch_zoom(fovy, ((fovy - PLAYER_ZOOMINFOVY) * 15.0f) / 30.0f);
+    }
 }
 
 // The look-ahead option centres the view up and down while Bond walks, which would undo the mouse's: off while the
