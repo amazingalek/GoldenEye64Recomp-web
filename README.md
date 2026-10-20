@@ -113,12 +113,13 @@ The `mouse` branch plays the game with keyboard and mouse as the PC ports do (th
 the game's side and `src/game/mouse_keyboard.cpp` the program's. It stays off `main` and the page until it has been
 played by hand.
 
-- Outside aim mode the mouse turns Bond and tilts his view, 0.055 degrees a count at the default 50% as Perfect Dark's
-  port does, less as the view zooms. In aim mode it moves the crosshair, and the view turns while the crosshair is past
-  70% of the way to an edge. Mouse up looks up, whatever the game's Look Up/Down option says, unless Settings >
-  General > Invert Mouse Y is on.
-- In the menus' folders (file, mission and difficulty select) the mouse moves the game's cursor, as the stick does, and
-  left click selects.
+- The mouse turns Bond and tilts his view, 0.055 degrees a count at the default 50% as Perfect Dark's port does, less
+  as the view zooms, in aim mode as outside it. Right click is the game's aim mode: it shows the crosshair, which stays
+  in the middle of the screen where the shots go, and zooms the weapons that zoom, as Perfect Dark's port's Locked
+  mouse aim and goldeneye-pc-port's Centred aim do. Mouse up looks up, whatever the game's Look Up/Down option says,
+  unless Settings > General > Invert Mouse Y is on.
+- In the menus' folders (file, mission and difficulty select) the mouse moves the game's cursor, as the stick does, left
+  click selects and right click goes back, as B does.
 - Left click fires (also F), right click aims (also Left Shift), the wheel changes weapon, R reloads, and Left Ctrl or
   C crouches, a toggle aim mode keeps. WASD walks and strafes, the arrows turn and look, Space or Q is A (weapon), E is
   B (use), X is L, Return or Tab is Start (the watch). Motion and keys while the watch is up do nothing.
@@ -126,9 +127,12 @@ played by hand.
   Above 0 RecompFrontend asks for the browser's pointer lock once the game starts, which a browser grants only at a
   click or a key.
 - Played in Dam in Chrome (headless and off the desktop) and Firefox, with synthetic mouse events and Bond's angles,
-  crouch, aim mode and watch read from RDRAM: in both the mouse turns him the way the stick does, up looks up, the
-  crosshair follows the mouse, the edge turns the view that way, and the watch takes no motion; in Chrome the crouch
-  lasts through aim mode and fire, reload and the wheel work. Neither browser gave those runs the pointer lock, so how
-  it feels, and the lock itself, are left to a play by hand. In file select, in both, the cursor follows the mouse
-  (0.25 menu units a count at 50%) and a left click opens the folder; with Invert Mouse Y on, mouse up looks down in
-  Dam while the menu cursor still follows the mouse as it moves.
+  crouch, aim mode, weapon, field of view and watch read from RDRAM: in both the mouse turns him the way the stick does,
+  up looks up, in aim mode too (200 counts turn him 11 degrees aiming or not, about half that through a weapon zoomed
+  to half), the crosshair stays in the middle, and the watch takes no motion; in Chrome the crouch lasts through aim
+  mode and fire, reload and the wheel work, and with every gun aim mode zooms the KF7 to a 30 degree view, the AR33 to
+  20 and the sniper rifle to 15, which C-up (the Up arrow) takes to 7. Neither browser gave those runs the pointer
+  lock, so how it feels, and the lock itself, are left to a play by hand. In file select, in both, the cursor follows
+  the mouse (0.25 menu units a count at 50%) and a left click opens the folder, and on the difficulty screen a right
+  click goes back to mission select; with Invert Mouse Y on, mouse up looks down in Dam while the menu cursor still
+  follows the mouse as it moves.
