@@ -127,6 +127,10 @@ played by hand.
   swinging its turret a degree a tick, which is what C-left and C-right do there; the mouse swings the turret and tilts
   the view instead (the tank works out Bond's view from its own angle and its turret's, so the mouse can't turn it as
   it turns Bond). In the game's aim mode (Left Shift) the tank's controls are the game's own.
+- On the watch's inventory page W and S step through the items an item a press, and held, after 0.4 s at 7.5 a
+  second, as a PC's list does, rather than an item each of the game's 60 ticks a second, which is how far the game
+  moves its cursor with the stick pushed all the way, as the keys push it. The Up and Down arrows (C-up and C-down) step
+  as the game has them. With a pad, or the pointer free, the stick is the game's own.
 - In the menus' folders (file, mission and difficulty select) the mouse moves the game's cursor, as the stick does, left
   click selects and right click goes back, as B does.
 - Left click fires (also F), right click aims, the wheel changes weapon, R reloads, and Left Ctrl or C crouches, a
@@ -159,3 +163,7 @@ played by hand.
   in 2 s), A turns it back and the turret stays put, and 400 counts of the mouse to the right swing the turret 22
   degrees and 200 up tilt the view 11, in both browsers. Neither gave those runs the pointer lock either: a stand-in for
   it took the mouse's motion as a locked pointer's.
+- The watch's inventory page, played in Dam in Chrome and Firefox with All Guns on (33 items), the page's item read from
+  RDRAM while S, W and the Down arrow were held: before, S went through all 33 items in half a second, one each tick;
+  now it steps one at once, the next 0.4 s later and then one every 133 ms, in both browsers, and the Down arrow steps
+  as before (one at once, then about six a second). A stand-in took the place of the pointer lock here too.
