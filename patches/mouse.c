@@ -25,6 +25,9 @@
 // program (src/game/mouse_keyboard.cpp), which also puts left click on the pad (fire) and says whether right click is
 // held. Invert Mouse Y flips the mouse's up and down for looking and aiming.
 //
+// On the watch's inventory page, while the mouse plays, the stick (W and S) steps through the items an item a push, and
+// held, repeats at a pace that can be read, rather than an item a tick, as the original moves it pushed all the way.
+//
 // In the front end's folders (file, mission and difficulty select) the mouse moves the menus' own cursor as the stick
 // does, its left click selects, since the menus take Z as they take A, and its right click goes back, as B does.
 //
@@ -326,4 +329,152 @@ RECOMP_PATCH void frontUpdateControlStickPosition(void) {
                           left + MENU_CURSOR_MARGIN, left + getPlayer_c_screenwidth() - MENU_CURSOR_MARGIN);
     cursor_v_pos = clampf(cursor_v_pos + menu_stick_travel(-joyGetStickY(0)) + dy * MENU_UNITS_PER_COUNT,
                           top + MENU_CURSOR_MARGIN, top + getPlayer_c_screenheight() - MENU_CURSOR_MARGIN);
+}
+
+// The watch's inventory page: the original moves its cursor an item every tick the stick is pushed all the way (as W and
+// S push it), which at the page's 60 ticks a second runs through the list faster than it can be read; pushed less, it
+// creeps, and C-up and C-down (the Up and Down arrows) step an item a press. While the mouse plays the stick steps as
+// the keys of a PC's list do instead: an item a push, and held, another after 0.4 s and then 7.5 a second, on the
+// retraces' clock. With a pad, or the pointer free, the stick is as the original has it.
+#define INVENTORY_STICK_PUSHED 0x10
+#define INVENTORY_REPEAT_DELAY 24
+#define INVENTORY_REPEAT_INTERVAL 8
+
+extern s32 j_text_trigger;
+extern s32 watch_item_is_actively_selected;
+extern s32 g_curWatchItemIndex;
+extern f32 watch_inventory_cursor_pos;
+extern s32 watch_inventory_text_y;
+extern s32 watch_inventory_text_target_y;
+extern bool watch_inventory_text_is_settled;
+extern u32 watch_stick_y_prev_active;
+s32 bondinvCountTotalItemsInInv(void);
+s32 get_debug_gunwatchpos_flag(void);
+s32 watch_stick_y_pressed_up(void);
+s32 watch_stick_y_pressed_down(void);
+u32 is_holding_less_than_10_up_on_stick(void);
+u32 is_holding_less_than_10_down_on_stick(void);
+
+// Which way the stick held, and for how many retraces.
+static s32 inventory_stick_dir;
+static s32 inventory_stick_held;
+
+// The items held repeats have stepped after this many retraces.
+static s32 inventory_repeats(s32 held) {
+    return held < INVENTORY_REPEAT_DELAY ? 0 : (held - INVENTORY_REPEAT_DELAY) / INVENTORY_REPEAT_INTERVAL + 1;
+}
+
+// How many items the stick steps the cursor this tick, up negative.
+static s32 inventory_stick_step(void) {
+    s8 y = joyGetStickY(PLAYER_1);
+    s32 dir = y >= INVENTORY_STICK_PUSHED ? -1 : (y <= -INVENTORY_STICK_PUSHED ? 1 : 0);
+    if (dir != inventory_stick_dir) {
+        inventory_stick_dir = dir;
+        inventory_stick_held = 0;
+        return dir;
+    }
+    s32 before = inventory_repeats(inventory_stick_held);
+    inventory_stick_held += speedgraphframes;
+    return dir * (inventory_repeats(inventory_stick_held) - before);
+}
+
+// The original, but for the stick while the mouse plays.
+RECOMP_PATCH void game_options_inventory_navigation(void) {
+    s32 count;
+    s32 item_line_height;
+    s32 selected_item_line_height;
+    s32 mouse = recomp_mouse_playing();
+
+    count = bondinvCountTotalItemsInInv();
+
+    if (!get_debug_gunwatchpos_flag()) {
+        if (joyGetButtonsPressedThisFrame(PLAYER_1, U_JPAD | U_CBUTTONS) || (!mouse && joyGetStickY(PLAYER_1) >= 0x47)) {
+            if (((s32)watch_inventory_cursor_pos > 0) && !watch_item_is_actively_selected) {
+                watch_inventory_cursor_pos -= 1.0f;
+            }
+        } else if (joyGetButtonsPressedThisFrame(PLAYER_1, D_JPAD | D_CBUTTONS) ||
+                   (!mouse && joyGetStickY(PLAYER_1) < -0x46)) {
+            if (((s32)watch_inventory_cursor_pos < count - 1) && !watch_item_is_actively_selected) {
+                watch_inventory_cursor_pos += 1.0f;
+            }
+        }
+
+        if (joyGetButtons(PLAYER_1, U_JPAD | U_CBUTTONS)) {
+            if (((s32)watch_inventory_cursor_pos > 0) && !watch_item_is_actively_selected) {
+                watch_inventory_cursor_pos -= 0.1f;
+            }
+        } else if (joyGetButtons(PLAYER_1, D_JPAD | D_CBUTTONS)) {
+            if (((s32)watch_inventory_cursor_pos < count - 1) && !watch_item_is_actively_selected) {
+                watch_inventory_cursor_pos += 0.1f;
+            }
+        }
+    }
+
+    if (mouse) {
+        s32 step = inventory_stick_step();
+        if (!watch_item_is_actively_selected) {
+            for (; step < 0 && g_curWatchItemIndex > 0; step++) {
+                watch_inventory_cursor_pos -= 1.0f;
+                g_curWatchItemIndex--;
+            }
+            for (; step > 0 && g_curWatchItemIndex < count - 1; step--) {
+                watch_inventory_cursor_pos += 1.0f;
+                g_curWatchItemIndex++;
+            }
+        }
+    } else {
+        if (joyGetStickY(PLAYER_1) >= 0x1f && joyGetStickY(PLAYER_1) < 0x46 && g_curWatchItemIndex > 0 &&
+            !watch_item_is_actively_selected) {
+            watch_inventory_cursor_pos -= (f32)joyGetStickY(PLAYER_1) / 300.0f;
+        } else if (joyGetStickY(PLAYER_1) < -0x1e && joyGetStickY(PLAYER_1) >= -0x45 &&
+                   (s32)watch_inventory_cursor_pos < count - 1 && !watch_item_is_actively_selected) {
+            watch_inventory_cursor_pos -= (f32)joyGetStickY(PLAYER_1) / 300.0f;
+        }
+
+        if (watch_stick_y_pressed_up() && g_curWatchItemIndex > 0 && !watch_item_is_actively_selected) {
+            watch_inventory_cursor_pos -= 1.0f;
+        } else if (watch_stick_y_pressed_down() && g_curWatchItemIndex < count - 1 &&
+                   !watch_item_is_actively_selected) {
+            watch_inventory_cursor_pos += 1.0f;
+        }
+    }
+
+    if (is_holding_less_than_10_up_on_stick() || is_holding_less_than_10_down_on_stick()) {
+        watch_stick_y_prev_active = 1;
+    } else {
+        watch_stick_y_prev_active = 0;
+    }
+
+    if ((f32)count - 0.5f < watch_inventory_cursor_pos) {
+        watch_inventory_cursor_pos = (f32)count - 0.5f;
+    }
+
+    if (watch_inventory_cursor_pos < -0.5f) {
+        watch_inventory_cursor_pos = -0.5f;
+    }
+
+    // The current item is determined by the integer part of the cursor's position.
+    g_curWatchItemIndex = (s32)watch_inventory_cursor_pos;
+
+    item_line_height = j_text_trigger ? 14 : 12;
+    selected_item_line_height = j_text_trigger ? 14 : 12;
+    watch_inventory_text_target_y = (2 * selected_item_line_height) + (-g_curWatchItemIndex * item_line_height);
+
+    if (watch_inventory_text_target_y < watch_inventory_text_y) {
+        watch_inventory_text_y =
+            (watch_inventory_text_y - ((watch_inventory_text_y - watch_inventory_text_target_y) / 3)) - 1;
+        watch_inventory_text_is_settled = FALSE;
+    } else if (watch_inventory_text_y < watch_inventory_text_target_y) {
+        watch_inventory_text_y =
+            (watch_inventory_text_y + ((watch_inventory_text_target_y - watch_inventory_text_y) / 3)) + 1;
+        watch_inventory_text_is_settled = FALSE;
+    } else {
+        watch_inventory_text_is_settled = TRUE;
+    }
+
+    if (((f32)g_curWatchItemIndex + 0.55f < watch_inventory_cursor_pos) && !joyGetButtons(PLAYER_1, 0xffff)) {
+        watch_inventory_cursor_pos -= 0.1f;
+    } else if (watch_inventory_cursor_pos <= (f32)g_curWatchItemIndex + 0.45f && !joyGetButtons(PLAYER_1, 0xffff)) {
+        watch_inventory_cursor_pos += 0.1f;
+    }
 }
