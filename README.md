@@ -123,6 +123,10 @@ played by hand.
 - The game's auto-aim (its Auto-Aim option) is off while the mouse plays, the pointer locked to the game: shots go
   where the mouse points, and right click's crosshair stays in the middle, rather than onto a guard near it. With a pad,
   or Mouse Sensitivity at 0, the saved option is as it was.
+- In the tank (Runway, St. Petersburg) A and D turn it, as the arrows do, and W and S drive it, rather than A and D
+  swinging its turret a degree a tick, which is what C-left and C-right do there; the mouse swings the turret and tilts
+  the view instead (the tank works out Bond's view from its own angle and its turret's, so the mouse can't turn it as
+  it turns Bond). In the game's aim mode (Left Shift) the tank's controls are the game's own.
 - In the menus' folders (file, mission and difficulty select) the mouse moves the game's cursor, as the stick does, left
   click selects and right click goes back, as B does.
 - Left click fires (also F), right click aims, the wheel changes weapon, R reloads, and Left Ctrl or C crouches, a
@@ -149,3 +153,9 @@ played by hand.
 - Auto-aim with the mouse, played in Dam in Chrome and Firefox with right click held while Bond walks, strafes and turns
   past the guards, the player's auto-aim targets read from RDRAM 20 times a second: before, auto-aim had a target in 68
   of 970 samples in Chrome; now in none of 981 in Chrome and 918 in Firefox, with the option still saved on.
+- The tank, played on Runway in Chrome and Firefox, Bond put onto the tank and in with E, the tank's and its turret's
+  angles read from RDRAM: before, D held for 2 s left the tank where it was and swung its turret 123 degrees, the right
+  arrow turned it, and the mouse turned nothing; now D turns the tank as far as the right arrow does (about 115 degrees
+  in 2 s), A turns it back and the turret stays put, and 400 counts of the mouse to the right swing the turret 22
+  degrees and 200 up tilt the view 11, in both browsers. Neither gave those runs the pointer lock either: a stand-in for
+  it took the mouse's motion as a locked pointer's.
