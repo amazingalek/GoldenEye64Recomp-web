@@ -1,9 +1,11 @@
 #include "patches.h"
 
-// Keyboard and mouse as the PC ports play it (the README compares them with the Perfect Dark port). The mouse looks in
-// both of GoldenEye's aim modes: outside aim mode it turns Bond and tilts his view by an angle a count, as Perfect
-// Dark's port does (0.055 degrees a count at the default 50%, finer as the view zooms); in aim mode it moves the
-// crosshair across the screen, and the view turns while the crosshair is past 70% of the way to an edge. The keys and
+// Keyboard and mouse as the PC ports play it (the README compares them with the Perfect Dark port). The mouse turns Bond
+// and tilts his view by an angle a count, as Perfect Dark's port does (0.055 degrees a count at the default 50%, finer
+// as the view zooms), in aim mode as outside it. Aim mode still shows the crosshair and zooms the weapons that zoom,
+// and the mouse leaves the crosshair where the stick puts it, at the centre without one, as Perfect Dark's port's
+// Locked mouse aim and goldeneye-pc-port's Centred aim have it: the game's own aim, the stick moving the crosshair
+// across the screen and the view turning near an edge, adds nothing to a mouse, which already aims. The keys and
 // the wheel's actions beyond the N64's buttons (reload, crouch, next and previous weapon) come from the program
 // (src/game/mouse_keyboard.cpp), which also puts the mouse's buttons on the pad (fire, aim). Invert Mouse Y flips the
 // mouse's up and down for looking and aiming.
@@ -12,8 +14,8 @@
 // does, and its left click selects, since the menus take Z as they take A.
 //
 // The game calls one of two functions each tick it reads Bond's controls, with the crosshair's input: sub_GAME_7F067F58
-// outside aim mode and sub_GAME_7F067FBC in it. Both are patched here; each passes the game's own arguments on as the
-// original does, with the weapon's crosshair and aim speeds, unless the mouse has moved the crosshair.
+// outside aim mode and sub_GAME_7F067FBC in it. Both are patched here to turn the view by the mouse; each passes the
+// game's own arguments on as the original does, with the weapon's crosshair and aim speeds.
 
 // The current player's fields this writes, at the offsets the recompiled code reads them at (structs.h's comments
 // don't all match its layout).
@@ -65,14 +67,8 @@ extern f32 g_GlobalTimerDelta;
 extern f32 cursor_h_pos;
 extern f32 cursor_v_pos;
 
-// Degrees a count outside aim mode, and the crosshair's travel a count in aim mode (1 is the screen's edge), at 100%.
+// Degrees a count at 100%.
 #define LOOK_DEGREES_PER_COUNT 0.11f
-#define AIM_TRAVEL_PER_COUNT 0.0049f
-// In aim mode the view turns while the crosshair is past this, up to EDGE_TURN_DEGREES a second at the edge.
-#define EDGE_BOUNDARY 0.7f
-#define EDGE_TURN_DEGREES 120.0f
-// The crosshair follows the mouse at once, not with the weapon's damping (which smooths a stick's moves).
-#define MOUSE_CROSSHAIR_SPEED 0.01f
 // The menu cursor's travel a count at 100%, in the menus' units (the screen is 440 across): at the default 50% a count
 // moves it about as far across a full-screen page as the desktop's pointer goes.
 #define MENU_UNITS_PER_COUNT 0.5f
@@ -83,12 +79,6 @@ extern f32 cursor_v_pos;
 #define MENU_STICK_UNITS 0.075f
 #define MENU_STICK_MIN_UNITS 0.5f
 #define MENU_CURSOR_MARGIN 20.0f
-
-// Where the mouse has put the crosshair in aim mode, x right and y down as the game has them, and whether it has moved it since aim mode
-// began: until it has, a pad aims as it always did.
-static f32 aim_x;
-static f32 aim_y;
-static s32 aim_moved;
 
 // Whether the crouch key has Bond squatting, and the player it was pressed for.
 static s32 key_crouch;
@@ -147,18 +137,18 @@ static void apply_pc_actions(u32 actions) {
     }
 }
 
-// Takes this tick's motion and actions, and performs the actions. The game reads Bond's controls while the watch is up
-// and while his arm raises or lowers it too: what comes then is dropped, or the mouse would turn him behind the watch.
-static void take_mouse(f32* dx, f32* dy) {
+// Takes this tick's motion and actions, turns the view by the motion and performs the actions. The game reads Bond's
+// controls while the watch is up and while his arm raises or lowers it too: what comes then is dropped, or the mouse
+// would turn him behind the watch.
+static void take_mouse(void) {
     u32 actions = recomp_get_pc_actions();
-    recomp_take_mouse_look(dx, dy);
-    if (recomp_mouse_invert_y()) {
-        *dy = -*dy;
-    }
+    f32 dx, dy;
+    recomp_take_mouse_look(&dx, &dy);
     if (!PLAYER_OUTSIDE_WATCH_MENU || PLAYER_PAUSING) {
         actions = 0;
-        *dx = 0.0f;
-        *dy = 0.0f;
+    } else if (dx != 0.0f || dy != 0.0f) {
+        f32 scale = LOOK_DEGREES_PER_COUNT * zoom_scale();
+        turn_view(dx * scale, (recomp_mouse_invert_y() ? dy : -dy) * scale);
     }
     apply_pc_actions(actions);
 }
@@ -166,16 +156,7 @@ static void take_mouse(f32* dx, f32* dy) {
 // Outside aim mode: x and y are the crosshair's sway, speed its damping.
 RECOMP_PATCH void sub_GAME_7F067F58(f32 x, f32 y, f32 speed) {
     void* stats = get_ptr_item_statistics(getCurrentPlayerWeaponId(GUNRIGHT));
-    f32 dx, dy;
-
-    take_mouse(&dx, &dy);
-    if (dx != 0.0f || dy != 0.0f) {
-        f32 scale = LOOK_DEGREES_PER_COUNT * zoom_scale();
-        turn_view(dx * scale, -dy * scale);
-    }
-    aim_x = 0.0f;
-    aim_y = 0.0f;
-    aim_moved = FALSE;
+    take_mouse();
 
     f32 aim_lock_speed = ITEM_AIM_LOCK_SPEED(stats);
     if (aim_lock_speed < speed) {
@@ -187,43 +168,8 @@ RECOMP_PATCH void sub_GAME_7F067F58(f32 x, f32 y, f32 speed) {
 // In aim mode: x and y are the stick's, up to 0.65 each way.
 RECOMP_PATCH void sub_GAME_7F067FBC(f32 x, f32 y) {
     void* stats = get_ptr_item_statistics(getCurrentPlayerWeaponId(GUNRIGHT));
-    f32 crosshair_speed = ITEM_CROSSHAIR_SPEED(stats);
-    f32 dx, dy;
-
-    take_mouse(&dx, &dy);
-    if (dx != 0.0f || dy != 0.0f) {
-        f32 travel = AIM_TRAVEL_PER_COUNT * zoom_scale();
-        aim_x = clampf(aim_x + dx * travel, -1.0f, 1.0f);
-        aim_y = clampf(aim_y + dy * travel, -1.0f, 1.0f);
-        aim_moved = TRUE;
-    }
-
-    if (aim_moved) {
-        x = clampf(aim_x + x, -1.0f, 1.0f);
-        y = clampf(aim_y + y, -1.0f, 1.0f);
-        crosshair_speed = MOUSE_CROSSHAIR_SPEED;
-
-        // Past the boundary the view turns toward that edge, faster the nearer the crosshair is to it (y is down).
-        f32 seconds = g_GlobalTimerDelta / 60.0f;
-        f32 turn = EDGE_TURN_DEGREES * zoom_scale() * seconds / (1.0f - EDGE_BOUNDARY);
-        f32 turn_x = 0.0f;
-        f32 turn_y = 0.0f;
-        if (x > EDGE_BOUNDARY) {
-            turn_x = (x - EDGE_BOUNDARY) * turn;
-        } else if (x < -EDGE_BOUNDARY) {
-            turn_x = (x + EDGE_BOUNDARY) * turn;
-        }
-        if (y > EDGE_BOUNDARY) {
-            turn_y = -(y - EDGE_BOUNDARY) * turn;
-        } else if (y < -EDGE_BOUNDARY) {
-            turn_y = -(y + EDGE_BOUNDARY) * turn;
-        }
-        if (turn_x != 0.0f || turn_y != 0.0f) {
-            turn_view(turn_x, turn_y);
-        }
-    }
-
-    caclulate_gun_crosshair_position_rotation(x, y, crosshair_speed, ITEM_AIM_LOCK_SPEED(stats));
+    take_mouse();
+    caclulate_gun_crosshair_position_rotation(x, y, ITEM_CROSSHAIR_SPEED(stats), ITEM_AIM_LOCK_SPEED(stats));
 }
 
 // The look-ahead option centres the view up and down while Bond walks, which would undo the mouse's: off while the

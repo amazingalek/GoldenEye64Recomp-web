@@ -1,7 +1,8 @@
 // Keyboard and mouse as the PC ports play GoldenEye (the README compares them with the Perfect Dark port): the game's
 // side is patches/mouse.c, and this is the program's. RecompFrontend binds keys and a pad's buttons to the N64's
 // buttons, and gives a game the mouse's motion; the rest is here, read from SDL:
-// - the mouse's buttons on the pad: left fires (Z), right aims (R);
+// - the mouse's buttons on the pad: left fires (Z), right aims (R: the crosshair, and the zoom of the weapons that
+//   zoom, while the mouse still turns Bond);
 // - the actions GoldenEye has no N64 button for, which the patches perform: reload (R), crouch (Left Ctrl or C, a
 //   toggle), next and previous weapon (the wheel, down and up);
 // - the motion, gathered from every event until the patches take it, since the frontend keeps only what came since
@@ -144,18 +145,18 @@ void goldeneye::add_mouse_option(recomp::config::Config& general) {
     general.add_percent_number_option(
         recompui::config::general::options::mouse_sensitivity,
         "Mouse Sensitivity",
-        "How far the mouse turns Bond and moves the crosshair in aim mode. At 50% a count turns him 0.055 degrees, as the "
+        "How far the mouse turns Bond, aiming or not. At 50% a count turns him 0.055 degrees, as the "
         "Perfect Dark PC port's default does. <b>Setting this to zero turns mouse look off</b> and frees the pointer."
         "<br />"
         "<br />"
-        "Left click fires and right click aims; the wheel changes weapon, R reloads and Left Ctrl or C crouches.",
+        "Left click fires and right click aims: it shows the crosshair and zooms the weapons that zoom, and shots go to the "
+        "middle of the screen. The wheel changes weapon, R reloads and Left Ctrl or C crouches.",
         50.0
     );
     general.add_enum_option(
         invert_y_option,
         "Invert Mouse Y",
-        "Moving the mouse up looks down, and moves the crosshair down in aim mode. The menus' cursor follows the mouse "
-        "either way.",
+        "Moving the mouse up looks down. The menus' cursor follows the mouse either way.",
         invert_y_options,
         InvertY::Off
     );
