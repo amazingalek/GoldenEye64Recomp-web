@@ -114,14 +114,16 @@ the game's side and `src/game/mouse_keyboard.cpp` the program's. It stays off `m
 played by hand.
 
 - The mouse turns Bond and tilts his view, 0.055 degrees a count at the default 50% as Perfect Dark's port does, less
-  as the view zooms, in aim mode as outside it. Right click is the game's aim mode: it shows the crosshair, which stays
-  in the middle of the screen where the shots go, and zooms the weapons that zoom, as Perfect Dark's port's Locked
-  mouse aim and goldeneye-pc-port's Centred aim do. Mouse up looks up, whatever the game's Look Up/Down option says,
-  unless Settings > General > Invert Mouse Y is on.
+  as the view zooms, aiming or not. Right click aims and does nothing else: it shows the crosshair, which stays in the
+  middle of the screen where the shots go, and zooms the weapons that zoom, as Perfect Dark's port's Locked mouse aim
+  and goldeneye-pc-port's Centred aim do, while Bond walks, strafes and looks as he does without it. It isn't the
+  game's aim mode (R), which would stop him: there the stick moves the crosshair instead of walking him and C-left and
+  C-right lean. While it aims the sniper rifle or the camera, the wheel zooms it further, up in and down out. Mouse up
+  looks up, whatever the game's Look Up/Down option says, unless Settings > General > Invert Mouse Y is on.
 - In the menus' folders (file, mission and difficulty select) the mouse moves the game's cursor, as the stick does, left
   click selects and right click goes back, as B does.
-- Left click fires (also F), right click aims (also Left Shift), the wheel changes weapon, R reloads, and Left Ctrl or
-  C crouches, a toggle aim mode keeps. WASD walks and strafes, the arrows turn and look, Space or Q is A (weapon), E is
+- Left click fires (also F), right click aims, the wheel changes weapon, R reloads, and Left Ctrl or C crouches, a
+  toggle aim mode keeps. Left Shift is R, the game's own aim mode. WASD walks and strafes, the arrows turn and look, Space or Q is A (weapon), E is
   B (use), X is L, Return or Tab is Start (the watch). Motion and keys while the watch is up do nothing.
 - Settings > General > Mouse Sensitivity sets how far a count goes; 0 turns mouse look off and frees the pointer.
   Above 0 RecompFrontend asks for the browser's pointer lock once the game starts, which a browser grants only at a
@@ -136,3 +138,8 @@ played by hand.
   the mouse (0.25 menu units a count at 50%) and a left click opens the folder, and on the difficulty screen a right
   click goes back to mission select; with Invert Mouse Y on, mouse up looks down in Dam while the menu cursor still
   follows the mouse as it moves.
+- Right click without the game's aim mode, played in Dam in Chrome and Firefox the same way, Bond's position, aim mode,
+  crosshair, field of view and weapon read from RDRAM: with it held he stays out of aim mode with the crosshair shown,
+  and W, D and S move him as far as without it (W for 1.5 s about 670 units either way, where the earlier aim mode
+  moved him none); with the sniper rifle (All Guns on) it zooms to 15 degrees, three notches of the wheel up take that
+  to 7.7 and one down to 9.6, he walks while zoomed, and letting go puts back 60 and hides the crosshair.
