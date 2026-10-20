@@ -75,3 +75,4 @@ recomp_mouse_invert_y = 0x8F000120;
 recomp_mouse_menu_shown = 0x8F000124;
 recomp_mouse_aim_held = 0x8F000128;
 recomp_mouse_playing = 0x8F00012C;
+recomp_mouse_driving_tank = 0x8F000130;

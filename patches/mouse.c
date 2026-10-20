@@ -16,6 +16,11 @@
 // where the gun fires, onto a target near the middle of the screen, which takes the aim from the mouse. With a pad, or
 // the pointer free, the saved option is as it was.
 //
+// In the tank, outside aim mode and while the mouse plays, the program makes C-left and C-right (A and D) the stick's
+// left and right, as the arrows are, so that WASD drives it: the C-buttons would only swing its turret, a degree a
+// tick. The mouse swings the turret and tilts the view instead, since the tank works out Bond's view from its own
+// angle and its turret's each tick, after his controls.
+//
 // The keys and the wheel's actions beyond the N64's buttons (reload, crouch, next and previous weapon) come from the
 // program (src/game/mouse_keyboard.cpp), which also puts left click on the pad (fire) and says whether right click is
 // held. Invert Mouse Y flips the mouse's up and down for looking and aiming.
@@ -71,6 +76,7 @@ s32 recomp_mouse_invert_y(void);
 void recomp_mouse_menu_shown(void);
 s32 recomp_mouse_aim_held(void);
 s32 recomp_mouse_playing(void);
+void recomp_mouse_driving_tank(void);
 
 s32 getCurrentPlayerWeaponId(s32 hand);
 void* get_ptr_item_statistics(s32 item);
@@ -95,6 +101,15 @@ f32 getPlayer_c_screenheight(void);
 extern f32 g_GlobalTimerDelta;
 extern f32 cursor_h_pos;
 extern f32 cursor_v_pos;
+extern s32 g_PlayerIsInTank;
+extern s32 g_EnterTankAudioState;
+extern f32 g_TankTurretTurn;
+
+// g_EnterTankAudioState once Bond has climbed in and the tank answers its controls.
+#define TANK_RUNNING 2
+// The lowest the view tilts in the tank, as the game keeps it.
+#define TANK_MIN_VERTA -20.0f
+#define DEGREES_TO_RADIANS 0.017453292f
 
 // Degrees a count at 100%.
 #define LOOK_DEGREES_PER_COUNT 0.11f
@@ -183,6 +198,16 @@ static void apply_pc_actions(u32 actions) {
     }
 }
 
+// Turns the tank's turret right and tilts the view up by these angles: the tank sets the view's theta itself each tick
+// after Bond's controls, from its own angle and its turret's, so a turn goes to the turret, as C-left and C-right do.
+static void turn_tank_turret(f32 degrees_right, f32 degrees_up) {
+    if (g_EnterTankAudioState != TANK_RUNNING) {
+        return;
+    }
+    g_TankTurretTurn += degrees_right * DEGREES_TO_RADIANS;
+    PLAYER_VV_VERTA = clampf(PLAYER_VV_VERTA + degrees_up, TANK_MIN_VERTA, 90.0f);
+}
+
 // Takes this tick's motion and actions, turns the view by the motion and performs the actions. The game reads Bond's
 // controls while the watch is up and while his arm raises or lowers it too: what comes then is dropped, or the mouse
 // would turn him behind the watch.
@@ -190,11 +215,20 @@ static void take_mouse(void) {
     u32 actions = recomp_get_pc_actions();
     f32 dx, dy;
     recomp_take_mouse_look(&dx, &dy);
+    if (g_PlayerIsInTank == 1 && !PLAYER_INSIGHTAIMMODE) {
+        recomp_mouse_driving_tank();
+    }
     if (!PLAYER_OUTSIDE_WATCH_MENU || PLAYER_PAUSING) {
         actions = 0;
     } else if (dx != 0.0f || dy != 0.0f) {
         f32 scale = LOOK_DEGREES_PER_COUNT * zoom_scale();
-        turn_view(dx * scale, (recomp_mouse_invert_y() ? dy : -dy) * scale);
+        f32 right = dx * scale;
+        f32 up = (recomp_mouse_invert_y() ? dy : -dy) * scale;
+        if (g_PlayerIsInTank == 1) {
+            turn_tank_turret(right, up);
+        } else {
+            turn_view(right, up);
+        }
     }
     apply_pc_actions(actions);
 }

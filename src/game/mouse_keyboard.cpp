@@ -7,6 +7,8 @@
 // - the actions GoldenEye has no N64 button for, which the patches perform: reload (R), crouch (Left Ctrl or C, a
 //   toggle), next and previous weapon (the wheel, down and up);
 // - whether the mouse plays (the pointer locked to the game), which turns the game's auto-aim off;
+// - in the tank, which the patches say Bond drives, C-left and C-right (A and D) as the stick's left and right, which
+//   turn it, while the mouse plays;
 // - the motion, gathered from every event until the patches take it, since the frontend keeps only what came since
 //   its last poll and the game reads its controls at its own rate;
 // - the keyboard's default bindings, the Mouse Sensitivity option, on at 50%, and Invert Mouse Y, off.
@@ -49,6 +51,8 @@ namespace {
     // When a menu last showed its cursor: one did a tick ago at most while it is up, so for as long as motion stays
     // fresh after it.
     std::chrono::steady_clock::time_point last_menu{};
+    // When the patches last said Bond drives the tank outside aim mode: each tick he does.
+    std::chrono::steady_clock::time_point last_tank{};
     int pending_actions[4] = {};
 
     bool game_has_mouse() {
@@ -62,6 +66,11 @@ namespace {
     bool menu_shown() {
         std::lock_guard lock{ pending_mutex };
         return std::chrono::steady_clock::now() - last_menu < stale_motion;
+    }
+
+    bool driving_tank() {
+        std::lock_guard lock{ pending_mutex };
+        return std::chrono::steady_clock::now() - last_tank < stale_motion;
     }
 
     void queue_action(int index) {
@@ -131,6 +140,8 @@ namespace {
 // The N64's buttons as a pad reports them.
 constexpr uint16_t n64_button_b = 0x4000;
 constexpr uint16_t n64_button_z = 0x2000;
+constexpr uint16_t n64_button_c_left = 0x0002;
+constexpr uint16_t n64_button_c_right = 0x0001;
 
 void goldeneye::init_mouse_keyboard() {
     using recompinput::GameInput;
@@ -168,7 +179,7 @@ void goldeneye::add_mouse_option(recomp::config::Config& general) {
         "as he does without it, with shots going to the middle of the screen. The game's Auto-Aim is off while the mouse "
         "plays, so shots go where it points. The wheel changes weapon, or zooms the "
         "sniper rifle while aiming. R reloads and Left Ctrl or C crouches. In the game's menus left click selects and "
-        "right click goes back.",
+        "right click goes back. In the tank A and D turn it and the mouse turns its turret.",
         50.0
     );
     general.add_enum_option(
@@ -188,6 +199,18 @@ bool goldeneye::get_input(int controller_num, uint16_t* buttons_out, float* x_ou
         }
         if (right_click_held() && menu_shown()) {
             *buttons_out |= n64_button_b;
+        }
+        // The tank turns with the stick's left and right; the C-buttons would only swing its turret, which the mouse
+        // does.
+        if (driving_tank()) {
+            if (*buttons_out & n64_button_c_left) {
+                *x_out -= 1.0f;
+            }
+            if (*buttons_out & n64_button_c_right) {
+                *x_out += 1.0f;
+            }
+            *x_out = std::clamp(*x_out, -1.0f, 1.0f);
+            *buttons_out &= ~(n64_button_c_left | n64_button_c_right);
         }
     }
     return ret;
@@ -240,6 +263,11 @@ extern "C" void recomp_mouse_look_enabled(uint8_t* rdram, recomp_context* ctx) {
 extern "C" void recomp_mouse_menu_shown(uint8_t* rdram, recomp_context* ctx) {
     std::lock_guard lock{ pending_mutex };
     last_menu = std::chrono::steady_clock::now();
+}
+
+extern "C" void recomp_mouse_driving_tank(uint8_t* rdram, recomp_context* ctx) {
+    std::lock_guard lock{ pending_mutex };
+    last_tank = std::chrono::steady_clock::now();
 }
 
 extern "C" void recomp_mouse_aim_held(uint8_t* rdram, recomp_context* ctx) {
