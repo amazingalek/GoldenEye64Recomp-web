@@ -53,20 +53,31 @@ cp "\$src" "\$out"
 EOF
 chmod +x "$SHIM_DIR/dxc-shim"
 
-podman run --rm --userns=keep-id -v "$PWD:$PWD" -w "$PWD" "$IMAGE" bash -c "
+# ccache inside the container, if the caller uses it (CI does): set CCACHE_DIR and the container gets its own
+# cache next to it, since it compiles with a different compiler and an older ccache.
+CCACHE_ARGS=()
+if [ -n "${CCACHE_DIR:-}" ]; then
+    SNIPER_CCACHE_DIR="$CCACHE_DIR-sniper"
+    mkdir -p "$SNIPER_CCACHE_DIR"
+    CCACHE_ARGS=(-v "$SNIPER_CCACHE_DIR:$SNIPER_CCACHE_DIR" -e "CCACHE_DIR=$SNIPER_CCACHE_DIR"
+        -e CMAKE_C_COMPILER_LAUNCHER=ccache -e CMAKE_CXX_COMPILER_LAUNCHER=ccache)
+    [ -n "${CCACHE_MAXSIZE:-}" ] && CCACHE_ARGS+=(-e "CCACHE_MAXSIZE=$CCACHE_MAXSIZE")
+fi
+
+podman run --rm --userns=keep-id -v "$PWD:$PWD" -w "$PWD" "${CCACHE_ARGS[@]}" "$IMAGE" bash -c "
     set -e
     cmake -S n64recomp-src -B n64recomp-src/build-sniper -G Ninja -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_C_COMPILER=gcc-14 -DCMAKE_CXX_COMPILER=g++-14 >/dev/null
     ninja -C n64recomp-src/build-sniper N64Recomp
 "
-podman run --rm --userns=keep-id -v "$PWD:$PWD" -w "$PWD" \
+podman run --rm --userns=keep-id -v "$PWD:$PWD" -w "$PWD" "${CCACHE_ARGS[@]}" \
     -v "$PWD/n64recomp-src/build-sniper/N64Recomp:$PWD/N64Recomp:ro" \
     -v "$PWD/$SHIM_DIR/dxc-shim:$PWD/$DXC_BIN:ro" "$IMAGE" bash -c "
     set -e
     # -ldl at the end of the link line: before glibc 2.34 dlopen/dlclose live in libdl, and CMake puts
     # -ldl ahead of librecomp.a, which uses them.
     cmake -S . -B '$BUILD_DIR' -G Ninja -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_C_COMPILER=gcc-14 -DCMAKE_CXX_COMPILER=g++-14 -DCMAKE_CXX_STANDARD_LIBRARIES=-ldl $MODE_FLAG
+        -DCMAKE_C_COMPILER=gcc-14 -DCMAKE_CXX_COMPILER=g++-14 -DCMAKE_CXX_STANDARD_LIBRARIES=-ldl $MODE_FLAG ${EXTRA_CMAKE_ARGS:-}
     ninja -C '$BUILD_DIR' GoldenRecomp
 "
 

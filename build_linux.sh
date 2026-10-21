@@ -101,7 +101,7 @@ echo "== [3/4] Configuring"
 #   no longer pulls it in transitively
 cmake -S . -B $BUILD_DIR -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
     -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-    "-DCMAKE_CXX_FLAGS=${CXXFLAGS:-} -Wno-unknown-warning-option -Wno-error=nontrivial-memcall -Wno-error=deprecated-literal-operator -Wno-error=uninitialized-const-pointer -include cstdint" $MODE_FLAG
+    "-DCMAKE_CXX_FLAGS=${CXXFLAGS:-} -Wno-unknown-warning-option -Wno-error=nontrivial-memcall -Wno-error=deprecated-literal-operator -Wno-error=uninitialized-const-pointer -include cstdint" $MODE_FLAG ${EXTRA_CMAKE_ARGS:-}
 
 echo "== [4/4] Building"
 ninja -C $BUILD_DIR GoldenRecomp

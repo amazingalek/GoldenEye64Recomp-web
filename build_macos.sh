@@ -102,7 +102,7 @@ xattr -dr com.apple.quarantine lib/rt64/src/contrib/dxc 2>/dev/null || true
 
 echo "== [6/6] Building GoldenRecomp"
 # The patches step cross-compiles MIPS patch code with brew clang + ld.lld.
-cmake -S . -B $BUILD_DIR -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 $MODE_FLAG
+cmake -S . -B $BUILD_DIR -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 $MODE_FLAG ${EXTRA_CMAKE_ARGS:-}
 ninja -C $BUILD_DIR GoldenRecomp
 
 echo ""

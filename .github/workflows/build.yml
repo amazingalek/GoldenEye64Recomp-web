@@ -28,6 +28,14 @@ concurrency:
 
 env:
   ASP_SHA256: ae28967ac5ef8a746f761a24897988006ddde24212a333355dfba97d363ba7e0
+  # ccache, restored and saved by actions/cache. CMake picks the launchers up from the environment.
+  # The compilers are freshly installed on every runner, so they're checked by content, not timestamp.
+  CMAKE_C_COMPILER_LAUNCHER: ccache
+  CMAKE_CXX_COMPILER_LAUNCHER: ccache
+  CCACHE_COMPILERCHECK: content
+  CCACHE_MAXSIZE: 1G
+  # ccache can't cache compiles that use a precompiled header, and RmlUi uses one for every file.
+  EXTRA_CMAKE_ARGS: -DENABLE_PRECOMPILED_HEADERS=OFF
 
 jobs:
   macos:
@@ -50,15 +58,29 @@ jobs:
           echo "$ASP_SHA256  $RUNNER_TEMP/asp.bin" | shasum -a 256 -c
           head -c $((0x22C80)) /dev/zero > ge007.tlbfree.z64
           cat "$RUNNER_TEMP/asp.bin" >> ge007.tlbfree.z64
+          echo "CCACHE_DIR=$HOME/.ccache" >> "$GITHUB_ENV"
 
       - name: Install dependencies
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_INSTALL_CLEANUP: '1'
         run: |
-          brew install cmake ninja sdl2 freetype llvm lld xdelta dylibbundler
+          brew install cmake ninja sdl2 freetype llvm lld xdelta dylibbundler ccache
           # Xcode 26 and later download the Metal compiler separately.
           xcrun -sdk macosx metal --version || xcodebuild -downloadComponent MetalToolchain
 
+      - name: Restore the compiler cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.ccache
+          key: ccache-macos-${{ github.sha }}
+          restore-keys: ccache-macos-
+
       - name: Build
-        run: ./build_macos.sh --clean
+        run: |
+          ccache -z
+          ./build_macos.sh --clean
+          ccache -s
 
       - name: Package
         run: |
@@ -97,16 +119,31 @@ jobs:
           echo "$ASP_SHA256  $RUNNER_TEMP/asp.bin" | sha256sum -c
           head -c $((0x22C80)) /dev/zero > ge007.tlbfree.z64
           cat "$RUNNER_TEMP/asp.bin" >> ge007.tlbfree.z64
+          echo "CCACHE_DIR=$HOME/.ccache" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build clang lld python3 pkg-config \
+          sudo apt-get install -y cmake ninja-build clang lld python3 pkg-config ccache \
             libsdl2-dev libfreetype-dev libgtk-3-dev libx11-dev libxrandr-dev podman
           podman pull -q registry.gitlab.steamos.cloud/steamrt/sniper/sdk:latest
 
+      # Two caches: the host build's, and the sniper container's next to it (build_steamdeck.sh).
+      - name: Restore the compiler cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.ccache
+            ~/.ccache-sniper
+          key: ccache-steamdeck-${{ github.sha }}
+          restore-keys: ccache-steamdeck-
+
       - name: Build
-        run: ./build_steamdeck.sh --clean
+        run: |
+          ccache -z
+          ./build_steamdeck.sh --clean
+          echo "== host build"; ccache -s
+          echo "== sniper build"; CCACHE_DIR=~/.ccache-sniper ccache -s || true
 
       - name: Check the glibc requirement
         run: |
