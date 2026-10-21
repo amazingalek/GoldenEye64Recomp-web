@@ -1,5 +1,6 @@
 #include <atomic>
 #include <cstdlib>
+#include <string>
 #include "zelda_debug.h"
 #include "librecomp/helpers.hpp"
 // #include "../patches/input.h"
@@ -49,4 +50,14 @@ extern "C" void recomp_get_harness_skip(uint8_t* rdram, recomp_context* ctx) {
 // Free-form integer for temporary A/B switches in patches while debugging. Unset: 0.
 extern "C" void recomp_get_harness_dbg(uint8_t* rdram, recomp_context* ctx) {
     _return(ctx, harness_env("GE_HARNESS_DBG", 0));
+}
+
+// The game's developer debug menu (C-Up + C-Down, i.e. both triggers on a controller) is off unless
+// GE_DEBUG_MENU=1 is set: it's easy to open by accident and renders badly.
+extern "C" void recomp_get_debug_menu_enabled(uint8_t* rdram, recomp_context* ctx) {
+    static const bool enabled = [] {
+        const char* value = getenv("GE_DEBUG_MENU");
+        return value != nullptr && std::string{value} == "1";
+    }();
+    _return(ctx, (int32_t) enabled);
 }

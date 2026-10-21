@@ -21,4 +21,5 @@ DECLARE_FUNC(s32, recomp_get_harness_stage);
 DECLARE_FUNC(s32, recomp_get_harness_look);
 DECLARE_FUNC(s32, recomp_get_harness_skip);
 DECLARE_FUNC(s32, recomp_get_harness_dbg);
+DECLARE_FUNC(s32, recomp_get_debug_menu_enabled);
 #endif
