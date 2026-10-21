@@ -36,7 +36,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: true
 
@@ -71,7 +71,7 @@ jobs:
           ditto -c -k --norsrc --noextattr --noacl --keepParent "package/GoldenEye 007 Recompiled.app" \
             "package/GoldenEye64Recomp-$VERSION-macOS-arm64.zip"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos-arm64
           path: package/*.zip
@@ -83,7 +83,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: true
 
@@ -126,7 +126,7 @@ jobs:
           # A tarball, so the executable bits survive the artifact upload.
           tar -czf "package/GoldenEye64Recomp-$VERSION-Linux-x86_64-SteamDeck.tar.gz" -C package GoldenEye64Recomp
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux-x86_64-steamdeck
           path: package/*.tar.gz
@@ -141,7 +141,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
