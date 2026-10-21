@@ -3,6 +3,7 @@
 #include <string>
 #include "zelda_debug.h"
 #include "librecomp/helpers.hpp"
+#include "ultramodern/ultramodern.hpp"
 // #include "../patches/input.h"
 
 std::atomic<uint16_t> pending_warp = 0xFFFF;
@@ -60,4 +61,9 @@ extern "C" void recomp_get_debug_menu_enabled(uint8_t* rdram, recomp_context* ct
         return value != nullptr && std::string{value} == "1";
     }();
     _return(ctx, (int32_t) enabled);
+}
+
+// Lets the patches' per-frame traces follow --debug-log.
+extern "C" void recomp_get_debug_log_enabled(uint8_t* rdram, recomp_context* ctx) {
+    _return(ctx, (int32_t) ultramodern::debug_logging);
 }

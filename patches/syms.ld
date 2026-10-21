@@ -82,3 +82,4 @@ recomp_get_harness_look = 0x8F000118;
 recomp_get_harness_skip = 0x8F00011C;
 recomp_get_harness_dbg = 0x8F000120;
 recomp_get_debug_menu_enabled = 0x8F000124;
+recomp_get_debug_log_enabled = 0x8F000128;
