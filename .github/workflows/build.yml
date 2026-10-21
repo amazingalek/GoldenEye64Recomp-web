@@ -1,0 +1,152 @@
+# Builds the clean (no game code) variant for macOS on Apple Silicon and for Linux x86_64 / Steam Deck.
+#
+# Run it from the Actions tab to get the two packages as run artifacts. Push a v* tag (v1.2.0) and it also
+# puts them on a draft GitHub release for that tag, to be checked and published by hand.
+#
+# A clean build ships no game code, but it still translates the game's audio microcode (aspMain) at build
+# time, and that is the only part of the ROM it reads: 0xDC0 bytes at offset 0x22C80 of the TLBFREE ROM.
+# So instead of a ROM, the runner gets just that slice, from the ASP_MICROCODE_B64 secret, and lays it at
+# the same offset in an otherwise zero-filled ge007.tlbfree.z64. RSPRecomp's output from that is identical
+# to its output from the full ROM. Making the secret, once, from a TLBFREE ROM:
+#   dd if=ge007.tlbfree.z64 bs=1 skip=$((0x22C80)) count=$((0xDC0)) status=none | base64 -w0 \
+#     | gh secret set ASP_MICROCODE_B64 --repo podulator/GoldenEye64Recomp
+#
+# There is no pull request trigger, so the secret is never exposed to code from forks.
+name: build
+
+on:
+  push:
+    tags: ['v*', 'V*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ASP_SHA256: ae28967ac5ef8a746f761a24897988006ddde24212a333355dfba97d363ba7e0
+
+jobs:
+  macos:
+    # Apple Silicon. macOS 15 rather than the newest: the app, and the Homebrew libraries bundled in it,
+    # won't run on a macOS older than the one it was built on.
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Lay out the audio microcode
+        env:
+          ASP_MICROCODE_B64: ${{ secrets.ASP_MICROCODE_B64 }}
+        run: |
+          set -eu
+          [ -n "$ASP_MICROCODE_B64" ] || { echo "::error::the ASP_MICROCODE_B64 secret isn't set, see the top of this file"; exit 1; }
+          printf '%s' "$ASP_MICROCODE_B64" | base64 --decode > "$RUNNER_TEMP/asp.bin"
+          echo "$ASP_SHA256  $RUNNER_TEMP/asp.bin" | shasum -a 256 -c
+          head -c $((0x22C80)) /dev/zero > ge007.tlbfree.z64
+          cat "$RUNNER_TEMP/asp.bin" >> ge007.tlbfree.z64
+
+      - name: Install dependencies
+        run: |
+          brew install cmake ninja sdl2 freetype llvm lld xdelta dylibbundler
+          # Xcode 26 and later download the Metal compiler separately.
+          xcrun -sdk macosx metal --version || xcodebuild -downloadComponent MetalToolchain
+
+      - name: Build
+        run: ./build_macos.sh --clean
+
+      - name: Package
+        run: |
+          set -eu
+          rm -f ge007.tlbfree.z64
+          VERSION=$([ "$GITHUB_REF_TYPE" = tag ] && echo "$GITHUB_REF_NAME" || echo "dev-${GITHUB_SHA::7}")
+          mkdir -p package
+          ./make_macos_app.sh build-clean/GoldenRecomp package
+          # Plain files only (no ._ extended-attribute entries); the signature is in the app itself.
+          ditto -c -k --norsrc --noextattr --noacl --keepParent "package/GoldenEye 007 Recompiled.app" \
+            "package/GoldenEye64Recomp-$VERSION-macOS-arm64.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64
+          path: package/*.zip
+          if-no-files-found: error
+
+  steamdeck:
+    # Compiled inside Valve's Steam Linux Runtime 3.0 (sniper) SDK, so the binary only needs glibc 2.31:
+    # it runs on the Steam Deck and on most desktop distros. See build_steamdeck.sh.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Lay out the audio microcode
+        env:
+          ASP_MICROCODE_B64: ${{ secrets.ASP_MICROCODE_B64 }}
+        run: |
+          set -eu
+          [ -n "$ASP_MICROCODE_B64" ] || { echo "::error::the ASP_MICROCODE_B64 secret isn't set, see the top of this file"; exit 1; }
+          printf '%s' "$ASP_MICROCODE_B64" | base64 --decode > "$RUNNER_TEMP/asp.bin"
+          echo "$ASP_SHA256  $RUNNER_TEMP/asp.bin" | sha256sum -c
+          head -c $((0x22C80)) /dev/zero > ge007.tlbfree.z64
+          cat "$RUNNER_TEMP/asp.bin" >> ge007.tlbfree.z64
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build clang lld python3 pkg-config \
+            libsdl2-dev libfreetype-dev libgtk-3-dev libx11-dev libxrandr-dev podman
+          podman pull -q registry.gitlab.steamos.cloud/steamrt/sniper/sdk:latest
+
+      - name: Build
+        run: ./build_steamdeck.sh --clean
+
+      - name: Check the glibc requirement
+        run: |
+          need=$(objdump -T build-sniper-clean/GoldenRecomp | grep -o 'GLIBC_[0-9.]*' | sort -Vu | tail -1 | sed 's/GLIBC_//')
+          echo "needs glibc $need"
+          if [ "$(printf '%s\n2.31\n' "$need" | sort -V | tail -1)" != 2.31 ]; then
+            echo "::error::the binary needs glibc $need, newer than the 2.31 in the sniper runtime"
+            exit 1
+          fi
+
+      - name: Package
+        run: |
+          set -eu
+          rm -f ge007.tlbfree.z64
+          VERSION=$([ "$GITHUB_REF_TYPE" = tag ] && echo "$GITHUB_REF_NAME" || echo "dev-${GITHUB_SHA::7}")
+          tools/package_linux.sh build-sniper-clean/GoldenRecomp package
+          # A tarball, so the executable bits survive the artifact upload.
+          tar -czf "package/GoldenEye64Recomp-$VERSION-Linux-x86_64-SteamDeck.tar.gz" -C package GoldenEye64Recomp
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64-steamdeck
+          path: package/*.tar.gz
+          if-no-files-found: error
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: [macos, steamdeck]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Draft the release
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --draft --verify-tag \
+            --title "GoldenEye64Recomp $GITHUB_REF_NAME" --generate-notes

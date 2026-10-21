@@ -4,6 +4,15 @@
 set -e
 cd "$(dirname "$0")"
 
+# Pass --clean to build the distributable variant: it ships NO game code and
+# recompiles everything from the user's ROM in-memory at launch.
+MODE_FLAG=""
+BUILD_DIR="build"
+if [ "$1" = "--clean" ]; then
+    MODE_FLAG="-DLIVE_GAMECODE=ON"
+    BUILD_DIR="build-clean"
+fi
+
 echo "== [1/6] Checking prerequisites"
 if ! xcode-select -p >/dev/null 2>&1; then
     echo "ERROR: Xcode is required (for the Metal shader compiler)."
@@ -39,7 +48,13 @@ LLD_BIN="$(brew --prefix lld)/bin"
 export PATH="$LLVM_BIN:$LLD_BIN:$PATH"
 
 echo "== [3/6] Preparing the TLBFREE ROM (needed to generate the game code)"
-if [ ! -f ge007.tlbfree.z64 ]; then
+# A clean build only reads the ROM to translate the audio microcode, so once
+# rsp/aspMain.cpp exists it needs no ROM at all.
+NEED_ROM=1
+if [ "$BUILD_DIR" = "build-clean" ] && [ -f rsp/aspMain.cpp ]; then
+    NEED_ROM=0
+fi
+if [ "$NEED_ROM" = 1 ] && [ ! -f ge007.tlbfree.z64 ]; then
     if [ -f baserom.u.z64 ]; then
         echo "Converting your retail NTSC-U ROM..."
         xdelta3 -d -s baserom.u.z64 vanilla_to_tlbfree.xdelta ge007.tlbfree.z64
@@ -73,7 +88,7 @@ if [ ! -f ./N64Recomp ] || [ -d ./N64Recomp ]; then
 fi
 
 echo "== [4b/6] Generating the recompiled game code from your ROM"
-if [ ! -d RecompiledFuncs ]; then
+if [ "$BUILD_DIR" = "build" ] && [ ! -d RecompiledFuncs ]; then
     ./N64Recomp us.toml
     python3 tools_weaken_patched.py
 fi
@@ -86,14 +101,6 @@ chmod +x lib/rt64/src/contrib/dxc/bin/arm64/dxc-macos 2>/dev/null || true
 xattr -dr com.apple.quarantine lib/rt64/src/contrib/dxc 2>/dev/null || true
 
 echo "== [6/6] Building GoldenRecomp"
-# Pass --clean to build the distributable variant: it ships NO game code and
-# recompiles everything from the user's ROM in-memory at launch.
-MODE_FLAG=""
-BUILD_DIR="build"
-if [ "$1" = "--clean" ]; then
-    MODE_FLAG="-DLIVE_GAMECODE=ON"
-    BUILD_DIR="build-clean"
-fi
 # The patches step cross-compiles MIPS patch code with brew clang + ld.lld.
 cmake -S . -B $BUILD_DIR -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 $MODE_FLAG
 ninja -C $BUILD_DIR GoldenRecomp
