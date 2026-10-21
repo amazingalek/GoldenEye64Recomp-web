@@ -1,7 +1,10 @@
 # Builds the clean (no game code) variant for macOS on Apple Silicon and for Linux x86_64 / Steam Deck.
 #
-# Run it from the Actions tab to get the two packages as run artifacts. Push a v* tag (v1.2.0) and it also
-# puts them on a draft GitHub release for that tag, to be checked and published by hand.
+# Run it from the Actions tab to get the two packages as run artifacts. To release, run it on main with a
+# version (1.2.0): it builds, tags that commit v1.2.0 and puts both packages on a draft release, to be checked
+# and published by hand. The version has to match version_string in src/main/main.cpp. Releasing from main
+# rather than by pushing a tag matters for speed: a tag run can only reuse compiler caches saved on main or on
+# that same tag, so a pushed tag always builds from cold. Pushing a v* tag by hand still works.
 #
 # A clean build ships no game code, but it still translates the game's audio microcode (aspMain) at build
 # time, and that is the only part of the ROM it reads: 0xDC0 bytes at offset 0x22C80 of the TLBFREE ROM.
@@ -18,6 +21,11 @@ on:
   push:
     tags: ['v*', 'V*']
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'To release: the version, e.g. 1.2.0 (tags this commit and drafts a release). Empty: just build'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -38,7 +46,48 @@ env:
   EXTRA_CMAKE_ARGS: -DENABLE_PRECOMPILED_HEADERS=OFF
 
 jobs:
+  # Works out the release tag, if any, and checks it before an hour of runner time is spent on it.
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      label: ${{ steps.tag.outputs.label }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Work out and check the release tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -eu
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            tag=$GITHUB_REF_NAME
+          elif [ -n "${INPUT_VERSION:-}" ]; then
+            [ "$GITHUB_REF_NAME" = main ] || { echo "::error::release from main, not $GITHUB_REF_NAME"; exit 1; }
+            tag=v${INPUT_VERSION#[vV]}
+            if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1; then
+              echo "::error::the tag $tag already exists"
+              exit 1
+            fi
+          else
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            echo "label=dev-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+            echo "No version given: building only."
+            exit 0
+          fi
+          version=$(sed -nE 's/^const std::string version_string = "([^"]*)";/\1/p' src/main/main.cpp)
+          if [ "${tag#[vV]}" != "$version" ]; then
+            echo "::error::$tag doesn't match version_string \"$version\" in src/main/main.cpp: change one of them"
+            exit 1
+          fi
+          echo "Releasing $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "label=$tag" >> "$GITHUB_OUTPUT"
+
   macos:
+    needs: prepare
     # Apple Silicon. macOS 15 rather than the newest: the app, and the Homebrew libraries bundled in it,
     # won't run on a macOS older than the one it was built on.
     runs-on: macos-15
@@ -86,9 +135,9 @@ jobs:
         run: |
           set -eu
           rm -f ge007.tlbfree.z64
-          VERSION=$([ "$GITHUB_REF_TYPE" = tag ] && echo "$GITHUB_REF_NAME" || echo "dev-${GITHUB_SHA::7}")
+          VERSION=${{ needs.prepare.outputs.label }}
           mkdir -p package
-          ./make_macos_app.sh build-clean/GoldenRecomp package
+          APP_VERSION=$VERSION ./make_macos_app.sh build-clean/GoldenRecomp package
           # Plain files only (no ._ extended-attribute entries); the signature is in the app itself.
           ditto -c -k --norsrc --noextattr --noacl --keepParent "package/GoldenEye 007 Recompiled.app" \
             "package/GoldenEye64Recomp-$VERSION-macOS-arm64.zip"
@@ -100,6 +149,7 @@ jobs:
           if-no-files-found: error
 
   steamdeck:
+    needs: prepare
     # Compiled inside Valve's Steam Linux Runtime 3.0 (sniper) SDK, so the binary only needs glibc 2.31:
     # it runs on the Steam Deck and on most desktop distros. See build_steamdeck.sh.
     runs-on: ubuntu-24.04
@@ -158,7 +208,7 @@ jobs:
         run: |
           set -eu
           rm -f ge007.tlbfree.z64
-          VERSION=$([ "$GITHUB_REF_TYPE" = tag ] && echo "$GITHUB_REF_NAME" || echo "dev-${GITHUB_SHA::7}")
+          VERSION=${{ needs.prepare.outputs.label }}
           tools/package_linux.sh build-sniper-clean/GoldenRecomp package
           # A tarball, so the executable bits survive the artifact upload.
           tar -czf "package/GoldenEye64Recomp-$VERSION-Linux-x86_64-SteamDeck.tar.gz" -C package GoldenEye64Recomp
@@ -170,8 +220,8 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: github.ref_type == 'tag'
-    needs: [macos, steamdeck]
+    if: needs.prepare.outputs.tag != ''
+    needs: [prepare, macos, steamdeck]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -183,7 +233,17 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # A release run from main tags the commit it built. Made with the workflow's own token, the tag doesn't
+      # start another run.
+      - name: Tag the commit
+        if: github.ref_type != 'tag'
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: gh api "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$GITHUB_SHA" >/dev/null
+
       - name: Draft the release
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --draft --verify-tag \
-            --title "GoldenEye64Recomp $GITHUB_REF_NAME" --generate-notes
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --draft --verify-tag \
+            --title "GoldenEye64Recomp $TAG" --generate-notes

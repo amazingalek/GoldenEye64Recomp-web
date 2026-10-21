@@ -18,8 +18,9 @@ if [ ! -f "$BIN" ]; then
     exit 1
 fi
 
-# The version shown in Finder, from the newest v* tag (v1.2.0 -> 1.2.0). macOS wants numbers only.
-VERSION=$(git describe --tags --match '[vV][0-9]*' 2>/dev/null | sed -e 's/^[vV]//' -e 's/[^0-9.].*//')
+# The version shown in Finder: APP_VERSION if set (CI), else the newest v* tag (v1.2.0 -> 1.2.0). macOS wants numbers only.
+VERSION=${APP_VERSION:-$(git describe --tags --match '[vV][0-9]*' 2>/dev/null)}
+VERSION=$(printf '%s' "$VERSION" | sed -e 's/^[vV]//' -e 's/[^0-9.].*//')
 VERSION=${VERSION:-1.0}
 
 rm -rf "$APP"
