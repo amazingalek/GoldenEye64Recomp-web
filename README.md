@@ -2,12 +2,13 @@
 
 > [!WARNING]
 > **This is amazingalek/GoldenEye64Recomp-web, a fork, not GoldenEye64Recomp or GoldenRecomp.** Its `main` branch is
-> cblock85's [GoldenEye64Recomp](https://github.com/cblock85/GoldenEye64Recomp) moved onto
+> cblock85's [GoldenEye64Recomp](https://github.com/cblock85/GoldenEye64Recomp), as podulator's
+> [fork of it](https://github.com/podulator/GoldenEye64Recomp) carries it on, moved onto
 > [RecompFrontend](https://github.com/N64Recomp/RecompFrontend) and built into a web page (WebGPU, through
-> [N64Recomp-browser](https://github.com/amazingalek/N64Recomp-browser)), and everything on it past cblock85's commits
-> was written by AI (Claude). It is not made, endorsed or supported by GoldenEye64Recomp's or GoldenRecomp's authors:
-> nothing here is offered upstream, and please don't take issues with this fork to them. Building it:
-> [BUILDING.md](BUILDING.md).
+> [N64Recomp-browser](https://github.com/amazingalek/N64Recomp-browser)), and everything on it past cblock85's and
+> podulator's commits was written by AI (Claude). It is not made, endorsed or supported by GoldenEye64Recomp's or
+> GoldenRecomp's authors: nothing here is offered upstream, and please don't take issues with this fork to them.
+> Building it: [BUILDING.md](BUILDING.md).
 >
 > This port is here to build out and test N64Recomp-browser's web support on another game than the one it was written
 > for: what it turns up is fixed there where it can be, so every recomp's page gets the fix.
@@ -20,8 +21,9 @@ GoldenEye 007 (N64, NTSC-U) statically recompiled with [N64Recomp](https://githu
 run by [N64ModernRuntime](https://github.com/N64Recomp/N64ModernRuntime) and drawn by [RT64](https://github.com/rt64/rt64),
 from the [GoldenEye decompilation](https://gitlab.com/kholdfuzion/goldeneye_src). It descends from kholdfuzion's
 [GoldenRecomp](https://github.com/kholdfuzion/goldenrecomp) (Windows) through cblock85's GoldenEye64Recomp (macOS
-and Linux). This fork builds as a native program (checked on Windows) and as a page that runs in a browser with
-WebGPU, both with RecompFrontend's launcher and menus, on upstream RT64, N64ModernRuntime and RecompFrontend at the
+and Linux) and podulator's fork of it, which this one merges (its sky and water drawn as RT64 can, the debug menu
+only with `GE_DEBUG_MENU=1`). This fork builds as a native program (checked on Windows) and as a page that runs in a
+browser with WebGPU, both with RecompFrontend's launcher and menus, on upstream RT64, N64ModernRuntime and RecompFrontend at the
 commits N64Recomp-browser's web forks are built on, with its `patches/` applied (BUILDING.md).
 
 ## No Nintendo assets
@@ -104,6 +106,10 @@ ROM you load, so the launcher takes the retail dump as it is.
   are supported but untested.
 - cblock85's run-time recompilation of the game from the ROM (`LiveGamecode`) is gone: RecompFrontend's launcher
   loads the ROM at run time instead, and the game's code is recompiled at build time.
+- podulator's macOS, Linux and Steam Deck build scripts, CI and native screenshot harness (`tools/harness.sh`) are
+  gone with the build they drive: this fork builds with CMake alone (BUILDING.md). The patches' harness hooks stay,
+  read from the same `GE_HARNESS_*` variables (`src/game/recomp_api.cpp`), and its `--debug-log` has nothing to turn
+  on here, where the patches print no per-frame traces.
 
 ## Keyboard and mouse
 

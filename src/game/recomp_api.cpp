@@ -1,4 +1,5 @@
 #include <cmath>
+#include <cstdlib>
 
 #include "recomp.h"
 #include "librecomp/overlays.hpp"
@@ -221,4 +222,42 @@ extern "C" void recomp_set_right_analog_suppressed(uint8_t* rdram, recomp_contex
     s32 suppressed = _arg<0, s32>(rdram, ctx);
 
     recompinput::set_right_analog_suppressed(suppressed);
+}
+
+// The patches' test harness (tools/harness.sh in podulator/GoldenEye64Recomp) and debug menu switch, read from the environment
+// as its src/game/debug.cpp reads them. A page has none of these set: the normal game, no debug menu.
+static int32_t env_int(const char* name, int32_t fallback) {
+    const char* value = getenv(name);
+    return value != nullptr ? (int32_t) strtol(value, nullptr, 0) : fallback;
+}
+
+// GE_HARNESS_STAGE=<level id> boots straight into that level.
+extern "C" void recomp_get_harness_stage(uint8_t* rdram, recomp_context* ctx) {
+    _return(ctx, env_int("GE_HARNESS_STAGE", -1));
+}
+
+// GE_HARNESS_LOOK=<degrees> holds the vertical look angle there.
+extern "C" void recomp_get_harness_look(uint8_t* rdram, recomp_context* ctx) {
+    _return(ctx, env_int("GE_HARNESS_LOOK", -1000));
+}
+
+// GE_HARNESS_SKIP=0 lets the level's intro play out.
+extern "C" void recomp_get_harness_skip(uint8_t* rdram, recomp_context* ctx) {
+    _return(ctx, env_int("GE_HARNESS_SKIP", 1));
+}
+
+// GE_HARNESS_DBG: a free integer for a patch's temporary A/B switch.
+extern "C" void recomp_get_harness_dbg(uint8_t* rdram, recomp_context* ctx) {
+    _return(ctx, env_int("GE_HARNESS_DBG", 0));
+}
+
+// The game's developer debug menu (C-Up and C-Down held together) opens only with GE_DEBUG_MENU=1.
+extern "C" void recomp_get_debug_menu_enabled(uint8_t* rdram, recomp_context* ctx) {
+    static const bool enabled = env_int("GE_DEBUG_MENU", 0) == 1;
+    _return(ctx, (int32_t) enabled);
+}
+
+// podulator's --debug-log turns on per-frame traces this fork's patches don't print, so it is always off.
+extern "C" void recomp_get_debug_log_enabled(uint8_t* rdram, recomp_context* ctx) {
+    _return(ctx, 0);
 }
