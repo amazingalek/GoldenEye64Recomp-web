@@ -5,10 +5,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Newer Apple clang advertises __cpp_consteval but rejects fmt's consteval
-# format-string checks; disable them so macOS builds cleanly (see the guard in
-# lib/fmt/include/fmt/base.h).
-if (APPLE)
+# Newer Apple clang, and LLVM's clang-cl on Windows, advertise __cpp_consteval but
+# reject fmt's consteval format-string checks; disable them so macOS and Windows
+# build cleanly (see the guard in lib/fmt/include/fmt/base.h).
+if (APPLE OR WIN32)
     add_compile_definitions(FMT_USE_CONSTEVAL=0)
 endif()
 # set(CMAKE_CXX_VISIBILITY_PRESET hidden)
@@ -20,6 +20,11 @@ endif()
 # Opt out of constexpr mutex constructor on windows to prevent vcredist issues
 if (WIN32)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR")
+endif()
+
+# SDL 2.30's SDL_endian.h defines _m_prefetch, which clang declares as a builtin in prfchwintrin.h
+if (WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_compile_definitions(__PRFCHWINTRIN_H)
 endif()
 
 # Avoid warning about DOWNLOAD_EXTRACT_TIMESTAMP in CMake 3.24:
@@ -299,6 +304,11 @@ if (WIN32)
     )
     target_link_directories(GoldenRecomp PRIVATE
         ${sdl2_SOURCE_DIR}/lib/x64
+    )
+    # RT64 looks for SDL2 in its mupen64plus-win32-deps submodule on Windows, which
+    # lib/rt64 doesn't carry: build it against the same SDL2 the program links.
+    target_include_directories(rt64 PRIVATE
+        ${sdl2_SOURCE_DIR}/include
     )
 
     # Copy SDL2 and dxc DLLs to output folder as post build step

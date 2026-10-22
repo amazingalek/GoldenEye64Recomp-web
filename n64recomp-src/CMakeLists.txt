@@ -4,10 +4,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Newer Apple clang advertises __cpp_consteval but rejects fmt's consteval
-# format-string checks; disable them so macOS builds cleanly (see the guard in
-# lib/fmt/include/fmt/base.h).
-if (APPLE)
+# Newer Apple clang, and LLVM's clang-cl on Windows, advertise __cpp_consteval but
+# reject fmt's consteval format-string checks; disable them so macOS and Windows
+# build cleanly (see the guard in lib/fmt/include/fmt/base.h).
+if (APPLE OR WIN32)
     add_compile_definitions(FMT_USE_CONSTEVAL=0)
 endif()
 # set(CMAKE_CXX_VISIBILITY_PRESET hidden)
