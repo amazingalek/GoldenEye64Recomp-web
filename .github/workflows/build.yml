@@ -275,10 +275,12 @@ jobs:
         run: |
           # MSYS2's tools go at the end of PATH: only make is wanted from there.
           export PATH="$PATH:/c/msys64/usr/bin"
+          export CCACHE_LOGFILE="$RUNNER_TEMP/ccache.log"
           ccache -z
           ./build_windows.sh --clean
-          # Verbose: lists why calls are uncacheable (all 670 were in the first Windows runs).
           ccache -sv
+          echo "== options ccache refused"
+          grep -ao "Compiler option [^ ]* is unsupported" "$CCACHE_LOGFILE" | sort | uniq -c | sort -rn | head -20 || true
 
       - name: Package
         run: |
