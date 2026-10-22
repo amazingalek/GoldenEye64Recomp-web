@@ -72,7 +72,8 @@ if [ "$NEED_ROM" = 1 ] && [ ! -f ge007.tlbfree.z64 ]; then
 fi
 if [ ! -f ./N64Recomp.exe ] || [ ! -f ./RSPRecomp.exe ]; then
     cmake -S n64recomp-src -B n64recomp-src/build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl "-DCMAKE_LINKER=$WIN_LINKER" >/dev/null
+        -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl "-DCMAKE_LINKER=$WIN_LINKER" \
+        "-DCMAKE_PROJECT_INCLUDE=$(cygpath -m "$PWD")/cmake/ccache_clang_cl.cmake" >/dev/null
     ninja -C n64recomp-src/build N64RecompCLI RSPRecomp
     cp n64recomp-src/build/N64Recomp.exe n64recomp-src/build/RSPRecomp.exe .
 fi
