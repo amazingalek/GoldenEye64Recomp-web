@@ -92,6 +92,7 @@ binaries, since the app itself contains only original code plus symbol facts.
 ```bash
 ./build_macos.sh --clean  # macOS
 ./build_linux.sh --clean  # Linux
+./build_windows.sh --clean  # Windows, from Git Bash
 ```
 
 (The audio microcode is still translated at build time, so a ROM is needed once

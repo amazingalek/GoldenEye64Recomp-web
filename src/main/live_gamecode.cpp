@@ -40,6 +40,15 @@
 
 #include "ge_dump_toml.h"
 
+// Last, so its macros (min, max, near, far, ...) can't reach the headers above.
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 // librecomp/ultramodern runtime hooks (all extern "C" in their homes).
 extern "C" {
     recomp_func_t* get_function(int32_t vram);
@@ -447,19 +456,35 @@ bool build_live_gamecode() {
 
 // Run the (stack-hungry) recompiler on a thread with a known-large stack.
 // The first live_call can arrive on a game thread, and macOS gives secondary
-// threads only 512 KB by default (Linux gives 8 MB) — nowhere near enough for
-// building a context of thousands of functions, so it would fault mid-build.
+// threads only 512 KB by default (Windows 1 MB, Linux 8 MB) — nowhere near enough
+// for building a context of thousands of functions, so it would fault mid-build.
 static void* build_live_gamecode_thread(void*) {
     load_ok = build_live_gamecode();
     return nullptr;
 }
 
+#ifdef _WIN32
+static DWORD WINAPI build_live_gamecode_thread_win(LPVOID) {
+    build_live_gamecode_thread(nullptr);
+    return 0;
+}
+#endif
+
 static void build_live_gamecode_big_stack() {
-#ifndef _WIN32
     size_t stack_bytes = 32u * 1024u * 1024u;
     if (const char* kb = getenv("GE_LIVE_STACK_KB")) {
         stack_bytes = strtoul(kb, nullptr, 10) * 1024u;
     }
+#ifdef _WIN32
+    // STACK_SIZE_PARAM_IS_A_RESERVATION: stack_bytes is the reservation, not the initial commit.
+    HANDLE thread = CreateThread(nullptr, stack_bytes, build_live_gamecode_thread_win, nullptr,
+                                 STACK_SIZE_PARAM_IS_A_RESERVATION, nullptr);
+    if (thread != nullptr) {
+        WaitForSingleObject(thread, INFINITE);
+        CloseHandle(thread);
+        return;
+    }
+#else
     pthread_attr_t attr;
     if (pthread_attr_init(&attr) == 0) {
         pthread_attr_setstacksize(&attr, stack_bytes);

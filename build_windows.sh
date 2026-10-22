@@ -2,6 +2,7 @@
 # GoldenEye 007: Recompiled — Windows build script (run it from Git Bash or an MSYS2 shell)
 # Usage:
 #   ./build_windows.sh          # standard build (game code compiled in at build time; needs ROM present)
+#   ./build_windows.sh --clean  # clean build: no game code; recompiled from the user's ROM at launch
 #
 # The program builds with LLVM's clang-cl against Visual Studio's C++ libraries and the Windows SDK.
 # The gameplay patches (patches/) are MIPS code: they need a clang with a MIPS target, which LLVM's
@@ -11,8 +12,16 @@ set -e
 cd "$(dirname "$0")"
 
 BUILD_DIR="build"
+MODE_FLAG=""
+if [ "$1" = "--clean" ]; then
+    MODE_FLAG="-DLIVE_GAMECODE=ON"
+    BUILD_DIR="build-clean"
+fi
 MIPS_CC="${MIPS_CC:-clang}"
 MIPS_LD="${MIPS_LD:-ld.lld}"
+# LLVM's lld-link rather than Visual Studio's link.exe: in Git Bash, /usr/bin/link (coreutils) comes first on
+# PATH, and CMake can pick that up as the linker.
+WIN_LINKER="${WIN_LINKER:-lld-link}"
 
 echo "== [1/4] Checking dependencies"
 MISSING=""
@@ -21,6 +30,7 @@ for tool in cmake ninja clang-cl make; do
 done
 command -v "$MIPS_CC" >/dev/null 2>&1 || MISSING="$MISSING MIPS_CC($MIPS_CC)"
 command -v "$MIPS_LD" >/dev/null 2>&1 || MISSING="$MISSING MIPS_LD($MIPS_LD)"
+command -v "$WIN_LINKER" >/dev/null 2>&1 || MISSING="$MISSING WIN_LINKER($WIN_LINKER)"
 if command -v py >/dev/null 2>&1; then
     PYTHON="py -3"
 elif command -v python3 >/dev/null 2>&1; then
@@ -44,8 +54,13 @@ fi
 
 echo "== [2/4] ROM preparation"
 # The build needs the TLBFREE ROM to generate the game code. vanilla_to_tlbfree.gep1 is the
-# patch the app itself embeds; applying it needs nothing but Python.
-if [ ! -f ge007.tlbfree.z64 ]; then
+# patch the app itself embeds; applying it needs nothing but Python. A clean build only reads
+# the ROM to translate the audio microcode, so once rsp/aspMain.cpp exists it needs no ROM.
+NEED_ROM=1
+if [ "$BUILD_DIR" = "build-clean" ] && [ -f rsp/aspMain.cpp ]; then
+    NEED_ROM=0
+fi
+if [ "$NEED_ROM" = 1 ] && [ ! -f ge007.tlbfree.z64 ]; then
     if [ -f baserom.u.z64 ]; then
         $PYTHON tools_apply_gep1.py baserom.u.z64 vanilla_to_tlbfree.gep1 ge007.tlbfree.z64
     else
@@ -55,11 +70,11 @@ if [ ! -f ge007.tlbfree.z64 ]; then
 fi
 if [ ! -f ./N64Recomp.exe ] || [ ! -f ./RSPRecomp.exe ]; then
     cmake -S n64recomp-src -B n64recomp-src/build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl >/dev/null
+        -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl "-DCMAKE_LINKER=$WIN_LINKER" >/dev/null
     ninja -C n64recomp-src/build N64RecompCLI RSPRecomp
     cp n64recomp-src/build/N64Recomp.exe n64recomp-src/build/RSPRecomp.exe .
 fi
-if [ ! -f RecompiledFuncs/funcs_0.c ]; then
+if [ "$BUILD_DIR" = "build" ] && [ ! -f RecompiledFuncs/funcs_0.c ]; then
     echo "Generating recompiled game code from the ROM..."
     ./N64Recomp.exe us.toml
     $PYTHON tools_weaken_patched.py
@@ -82,8 +97,8 @@ echo "== [3/4] Configuring"
 #   drop CMake's own clang-cl defaults (/EHsc and the rest).
 export CXXFLAGS="${CXXFLAGS:-} -Wno-unknown-warning-option -Wno-error=nontrivial-memcall -Wno-error=deprecated-literal-operator -Wno-error=uninitialized-const-pointer"
 cmake -S . -B $BUILD_DIR -G Ninja -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl \
-    "-DPATCHES_C_COMPILER=$MIPS_CC" "-DPATCHES_LD=$MIPS_LD" ${EXTRA_CMAKE_ARGS:-}
+    -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl "-DCMAKE_LINKER=$WIN_LINKER" \
+    "-DPATCHES_C_COMPILER=$MIPS_CC" "-DPATCHES_LD=$MIPS_LD" $MODE_FLAG ${EXTRA_CMAKE_ARGS:-}
 
 echo "== [4/4] Building"
 ninja -C $BUILD_DIR GoldenRecomp

@@ -1,7 +1,7 @@
-# Builds the clean (no game code) variant for macOS on Apple Silicon and for Linux x86_64 / Steam Deck.
+# Builds the clean (no game code) variant for macOS on Apple Silicon, Linux x86_64 / Steam Deck and Windows x64.
 #
-# Run it from the Actions tab to get the two packages as run artifacts. To release, run it on main with a
-# version (1.2.0): it builds, tags that commit v1.2.0 and puts both packages on a draft release, to be checked
+# Run it from the Actions tab to get the three packages as run artifacts. To release, run it on main with a
+# version (1.2.0): it builds, tags that commit v1.2.0 and puts all three packages on a draft release, to be checked
 # and published by hand. The version has to match version_string in src/main/main.cpp. Releasing from main
 # rather than by pushing a tag matters for speed: a tag run can only reuse compiler caches saved on main or on
 # that same tag, so a pushed tag always builds from cold. Pushing a v* tag by hand still works.
@@ -219,9 +219,85 @@ jobs:
           path: package/*.tar.gz
           if-no-files-found: error
 
+  windows:
+    needs: prepare
+    # Windows Server 2025 image: Visual Studio 2022 (MSVC libraries, Windows SDK), LLVM (clang-cl, lld-link,
+    # ld.lld) and MSYS2 in C:\msys64, not on PATH. See build_windows.sh.
+    runs-on: windows-2025
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # The build scripts are bash: keep them LF, the runner's git would check them out CRLF.
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Lay out the audio microcode
+        env:
+          ASP_MICROCODE_B64: ${{ secrets.ASP_MICROCODE_B64 }}
+        run: |
+          set -eu
+          [ -n "$ASP_MICROCODE_B64" ] || { echo "::error::the ASP_MICROCODE_B64 secret isn't set, see the top of this file"; exit 1; }
+          printf '%s' "$ASP_MICROCODE_B64" | base64 --decode > "$RUNNER_TEMP/asp.bin"
+          echo "$ASP_SHA256  $RUNNER_TEMP/asp.bin" | sha256sum -c
+          head -c $((0x22C80)) /dev/zero > ge007.tlbfree.z64
+          cat "$RUNNER_TEMP/asp.bin" >> ge007.tlbfree.z64
+          echo "CCACHE_DIR=$(cygpath -w ~/.ccache)" >> "$GITHUB_ENV"
+
+      # The gameplay patches are MIPS code: MSYS2's clang64 clang has the target (LLVM's Windows release doesn't),
+      # and make runs their Makefile.
+      - name: Install dependencies
+        run: |
+          /c/msys64/usr/bin/bash -lc "pacman -S --noconfirm --needed mingw-w64-clang-x86_64-clang make"
+          choco install ccache ninja --no-progress -y
+
+      # Pinned to a commit: the only third-party action here, in a job that holds the microcode secret.
+      - name: Set up the Visual Studio environment
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+        with:
+          arch: x64
+
+      - name: Restore the compiler cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.ccache
+          key: ccache-windows-${{ github.sha }}
+          restore-keys: ccache-windows-
+
+      - name: Build
+        env:
+          MIPS_CC: /c/msys64/clang64/bin/clang.exe
+        run: |
+          # MSYS2's tools go at the end of PATH: only make is wanted from there.
+          export PATH="$PATH:/c/msys64/usr/bin"
+          ccache -z
+          ./build_windows.sh --clean
+          ccache -s
+
+      - name: Package
+        run: |
+          set -eu
+          rm -f ge007.tlbfree.z64
+          VERSION=${{ needs.prepare.outputs.label }}
+          tools/package_windows.sh build-clean package
+          echo "== DLLs the exe imports"
+          objdump -p package/GoldenEye64Recomp/GoldenRecomp.exe | sed -n 's/^\tDLL Name: //p' | sort -f
+          (cd package && 7z a -tzip -bso0 "GoldenEye64Recomp-$VERSION-Windows-x64.zip" GoldenEye64Recomp)
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-x64
+          path: package/*.zip
+          if-no-files-found: error
+
   release:
     if: needs.prepare.outputs.tag != ''
-    needs: [prepare, macos, steamdeck]
+    needs: [prepare, macos, steamdeck, windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
