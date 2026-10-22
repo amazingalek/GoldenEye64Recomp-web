@@ -80,7 +80,7 @@ namespace RT64 {
         std::mutex threadMutex;
         std::atomic<bool> threadsRunning = false;
         std::atomic<bool> rtEnabled = false;
-        std::atomic<bool> ubershadersOnly = false;
+        std::atomic<bool> ubershadersOnly = true; // WORKAROUND: spec-constant shaders broken on SPIRV/Metal backends; ubershader renders correctly
         std::atomic<bool> ubershadersVisible = false;
         std::unique_ptr<FramebufferRenderer> framebufferRenderer;
         std::unique_ptr<RenderFramebufferManager> renderFramebufferManager;

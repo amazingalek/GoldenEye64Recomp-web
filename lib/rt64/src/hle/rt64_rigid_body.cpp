@@ -49,11 +49,20 @@ namespace RT64 {
             const hlslpp::float3x3 invPrevRotation = hlslpp::inverse(rotationFrom3x3(extract3x3(prevTransform)));
             const hlslpp::float3x3 diffRotation = hlslpp::mul(invPrevRotation, rotationFrom3x3(extract3x3(curTransform)));
             float diffTrace = traceFrom3x3(diffRotation);
-            float curAngularVelocity = std::acos((diffTrace - 1.0f) / 2.0f);
+            float traceCos = std::min(std::max((diffTrace - 1.0f) / 2.0f, -1.0f), 1.0f); // clamp against float error producing NaN
+            float prevAngularVelocity = angularVelocity;
+            float curAngularVelocity = std::acos(traceCos);
             angularVelocity = curAngularVelocity;
 
-            // FIXME: Defaults to always interpolate.
-            lerpRotation = true;
+            // Mirror the linear teleport heuristic: interpolate steady rotations (even fast ones),
+            // but snap when the rotation jumps suddenly — which is what happens when frame matching
+            // pairs up unrelated transforms (e.g. recycled dynamic matrix buffers) and would otherwise
+            // sweep garbage geometry across the screen for a frame.
+            const float Epsilon = 1e-6f;
+            const float AngularVelocityTolerance = 0.35f; // radians/frame (~20 deg); normal motion stays below this
+            const float AngularMagnitudeThreshold = 10.0f;
+            lerpRotation = (curAngularVelocity < AngularVelocityTolerance) ||
+                           ((curAngularVelocity / std::max(prevAngularVelocity, Epsilon)) < AngularMagnitudeThreshold);
 
             // If scale or skew are also set to auto, use the result of rotation auto calculation for their value as well.
             if (scaleInterpolation == G_EX_COMPONENT_AUTO) {
