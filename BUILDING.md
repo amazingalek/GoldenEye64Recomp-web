@@ -77,6 +77,8 @@ cmake --build build-web --target GoldenRecomp
 it where headers can't be set. Open it in a browser with WebGPU and pick your retail dump with Load ROM: it is kept
 in the browser's storage, with settings and saves.
 
-`tools/play_plan.json` plays the page as a player would, for N64Recomp-browser's `tools/play_page.mjs`: the boot, then
-Dam, started by `tools/shader_survey.js` as mission select does, and about a minute of Bond walking, turning,
-strafing and firing (its header says more).
+`tools/play_plan.json` plays the page as a player would, for N64Recomp-browser's `tools/play_page.mjs`, in 2-3
+minutes: the boot, then Dam, started by `tools/shader_survey.js` as mission select does, and about 35 s of Bond
+walking, turning, strafing and firing; then Facility in the same load, started from Dam and played about 25 s.
+`tools/play_plan_extended.json`, for when a longer play is needed, goes on to Surface 1 and Frigate that way, in at
+most 5 minutes (their headers say more).

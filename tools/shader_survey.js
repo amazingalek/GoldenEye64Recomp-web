@@ -3,8 +3,13 @@
 // the game to show a menu with that stage's briefing behind it (MENU_RUN_STAGE starts the stage) and resolves once it
 // has taken the request, setCursor(x, y), which moves the menus' cursor (cursor_h_pos and cursor_v_pos, floats), and
 // untilStageLeaves(stage, ms), which resolves once g_StageNum is no longer that stage (the title, 90, giving way to an
-// attract demo), or after ms, and setInvincible(), which sets g_PlayerInvincible so Bond lives through a level's
-// guards for as long as a section plays.
+// attract demo), or after ms, setInvincible(), which sets g_PlayerInvincible so Bond lives through a level's
+// guards for as long as a section plays. untilStage(stage, ms) resolves true once that stage is the one playing
+// (g_StageNum, with current_menu MENU_RUN_STAGE), or false after ms. nextStage(stage, ms) goes from the stage playing
+// to another, for a plan that plays several in one load: the menus run only in the title's stage, so it sets that
+// stage's briefing as surveyMenu does and then g_MainStageNum, which ends the stage loop (bossMainloop, in
+// patches/workbench_theboy.c) and loads that stage next, with no mission report between; it resolves once the stage
+// plays, or throws, naming the stage and menu it finds.
 (() => {
   if (!window.__survey) {
     for (let a = 0x80000000; a < 0x80c00000; a += 4) {
@@ -26,6 +31,18 @@
     const end = Date.now() + ms;
     while ((n64r(0x80023FA8) | 0) === stage && Date.now() < end) await new Promise((resolve) => setTimeout(resolve, 50));
     return 'stage ' + (n64r(0x80023FA8) | 0);
+  };
+  window.untilStage = async (stage, ms) => {
+    const playing = () => (n64r(0x80023FA8) | 0) === stage && (n64r(0x8002A6C0) | 0) === 11;
+    const end = Date.now() + ms;
+    while (!playing() && Date.now() < end) await new Promise((resolve) => setTimeout(resolve, 100));
+    return playing();
+  };
+  window.nextStage = async (stage, ms) => {
+    await window.surveyMenu(11, stage);
+    n64w(0x800240FC, stage);
+    if (await window.untilStage(stage, ms)) return 'stage ' + stage;
+    throw new Error('stage ' + (n64r(0x80023FA8) | 0) + ', menu ' + (n64r(0x8002A6C0) | 0) + ', not stage ' + stage);
   };
   window.setInvincible = () => { n64w(0x800362B4, 1); return 'stage ' + (n64r(0x80023FA8) | 0); };
   return s ? 'survey at ' + s.toString(16) : 'no survey struct: a page built without patches/shader_survey.c';
