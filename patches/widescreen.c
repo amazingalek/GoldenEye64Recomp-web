@@ -48,60 +48,79 @@ RECOMP_PATCH Gfx* zbufClearCurrentPlayer(Gfx* gdl) {
 }
 #endif
 
+// A room seen through a portal is drawn cut to the portal's rectangle on screen, and so are its props and guards: the
+// game's own occlusion. Rooms beyond a portal are drawn after the rooms in front of them, the walls around a portal
+// don't hide what is behind them, and some of the game's geometry (its terrain and backdrops) is drawn without the Z
+// buffer, so without the cut a room seen through a portal draws over what is in front of it: a building seen through
+// Surface's trees, Frigate's bridge consoles on the bridge's outer wall.
+//
+// The rectangle is in the game's 4:3 coordinates, and a widescreen view goes past them on both sides
+// (bgUpdateCurrentPlayerScreenMinMax widens the bounds the game makes it in): x 160 +- half, half = 120 * aspect. RT64
+// draws a projection widened only if its draws' scissors together span the whole screen, and the game loads its
+// projection again for every room, so a room cut to its portal would be drawn 4:3, squeezed into the middle. A room cut
+// narrower than the screen is given one empty triangle (three times the same vertex) under the whole screen's scissor
+// first, which keeps its projection widened, and then its rectangle in the widened projection's terms: RT64 spreads a
+// scissor's 0-320 over the whole widescreen view there, so x is scaled by 160 / half about the middle.
+static s32 scissorX(f32 x, f32 half, s32 roundup) {
+    f32 scaled = 160.0f + (x - 160.0f) * (160.0f / half);
+    s32 rounded = (s32) scaled;
+
+    if (roundup && (rounded < scaled)) {
+        rounded++;
+    } else if (!roundup && (rounded > scaled)) {
+        rounded--;
+    }
+
+    return (rounded < 0) ? 0 : ((rounded > 320) ? 320 : rounded);
+}
+
 #if 1
 RECOMP_PATCH Gfx* bgScissorCurrentPlayerView(Gfx* gdl, s32 left, s32 top, s32 width, s32 height) {
     struct player* player = g_CurrentPlayer;
+    f32 half = 120.0f * recomp_get_aspect_ratio(4.0f / 3.0f);
 
-    if (left < (s32) player->viewleft) {
-        left = (s32) player->viewleft;
+    // @recomp: the rectangle in the widescreen view, its edges at the view's edges opened to the whole screen
+    if (top <= (s32) player->viewtop) {
+        top = 0;
     }
 
-    if (top < (s32) player->viewtop) {
-        top = (s32) player->viewtop;
+    if (height >= (s32) (player->viewtop + player->viewy)) {
+        height = 240;
     }
 
-    if (player->viewleft + player->viewx < width) {
-        width = player->viewleft + player->viewx;
+    if (height < top) {
+        height = top;
     }
 
-    if (player->viewtop + player->viewy < height) {
-        height = player->viewtop + player->viewy;
+    left = scissorX(left, half, FALSE);
+    width = scissorX(width, half, TRUE);
+
+    if (width < left) {
+        width = left;
     }
 
-    // @recomp: use gEXSetScissor instead
-    // gDPSetScissor(gdl++, G_SC_NON_INTERLACE, left, top, width, height);
-    //
-    // A room seen through a doorway or window, and the props and guards in it, are clipped to that portal's box on
-    // screen: the walls around the portal draw without hiding what is behind them, so without the clip the room's
-    // props show on the walls. An edge of the box at or past the view's edge opens onto the whole widescreen width
-    // (the portal reaches off the 4:3 screen, and screenxminf/maxf let the game see that far); an edge inside it is
-    // the portal's own and is kept, in the game's 4:3 coordinates (G_EX_ORIGIN_NONE, as a plain gDPSetScissor).
-    {
-        s32 viewright = player->viewleft + player->viewx;
-        s32 viewbottom = player->viewtop + player->viewy;
-        u32 lorigin = G_EX_ORIGIN_NONE;
-        u32 rorigin = G_EX_ORIGIN_NONE;
+    if ((left > 0) || (width < 320)) {
+        Vtx* vtx = dynAllocateVertices(1);
+        u32* words = (u32*) vtx;
 
-        if (left <= (s32) player->viewleft) {
-            lorigin = G_EX_ORIGIN_LEFT;
-            left = 0;
-        }
+        words[0] = words[1] = words[2] = words[3] = 0;
+        gEXSetScissor(gdl++, G_SC_NON_INTERLACE, G_EX_ORIGIN_LEFT, G_EX_ORIGIN_RIGHT, 0, 0, 0, 240);
+        gSPVertex(gdl++, OS_K0_TO_PHYSICAL(vtx), 1, 0);
+        gSP1Triangle(gdl++, 0, 0, 0, 0);
 
-        if (top <= (s32) player->viewtop) {
-            top = 0;
-        }
-
-        if (width >= viewright) {
-            rorigin = G_EX_ORIGIN_RIGHT;
-            width = 0;
-        }
-
-        if (height >= viewbottom) {
-            height = 240;
-        }
-
-        gEXSetScissor(gdl++, G_SC_NON_INTERLACE, lorigin, rorigin, left, top, width, height);
+        // @recomp: use gEXSetScissor instead
+        // gDPSetScissor(gdl++, G_SC_NON_INTERLACE, left, top, width, height);
+        gEXSetScissor(gdl++, G_SC_NON_INTERLACE, G_EX_ORIGIN_NONE, G_EX_ORIGIN_NONE, left, top, width, height);
+    } else {
+        gEXSetScissor(gdl++, G_SC_NON_INTERLACE, G_EX_ORIGIN_LEFT, G_EX_ORIGIN_RIGHT, 0, top, 0, height);
     }
+
+    return gdl;
+}
+
+// The whole view, which the game gives as the 4:3 view's rectangle: the widescreen one.
+RECOMP_PATCH Gfx* bgScissorCurrentPlayerViewDefault(Gfx* gdl) {
+    gEXSetScissor(gdl++, G_SC_NON_INTERLACE, G_EX_ORIGIN_LEFT, G_EX_ORIGIN_RIGHT, 0, 0, 0, 240);
 
     return gdl;
 }
@@ -273,31 +292,6 @@ RECOMP_PATCH f32 getinstsize(Model* arg0) // @theboy181
 #if 1
 RECOMP_PATCH f32 getPlayer_c_lodscalez(void) {
     return g_CurrentPlayer->c_lodscalez / 8; // @theboy181 - Proper LOD fix?
-}
-#endif
-
-#if 0
-RECOMP_PATCH Gfx* bgScissorCurrentPlayerViewDefault(Gfx* gdl)
-{
-#if 1
-    static int counterstrike = 0;
-
-    if (counterstrike++ % 20) {
-        recomp_printf("g_CurrentPlayer->viewleft: %d g_CurrentPlayer->viewx: %d g_CurrentPlayer->viewtop: %d g_CurrentPlayer->viewy: %d sum: %d\n", 
-            g_CurrentPlayer->viewleft,
-            g_CurrentPlayer->viewx,
-            g_CurrentPlayer->viewtop, 
-            g_CurrentPlayer->viewy, 
-            g_CurrentPlayer->viewtop + g_CurrentPlayer->viewy);
-    }
-#endif
-
-    return bgScissorCurrentPlayerView(
-        gdl,
-        g_CurrentPlayer->viewleft,
-        g_CurrentPlayer->viewtop,
-        g_CurrentPlayer->viewleft + g_CurrentPlayer->viewx,
-        g_CurrentPlayer->viewtop + g_CurrentPlayer->viewy);
 }
 #endif
 
