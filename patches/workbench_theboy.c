@@ -3,6 +3,7 @@
 int demoMode = 0;
 
 void waitForNextFrame2();  // @theboy181 - Improtant for proper fps
+Gfx* originTagFrame(Gfx* gdl); // patches/origin_interpolation.c
 #if 1
 RECOMP_PATCH Gfx *renderGunbarrelEyeIntroSequence(Gfx *gdl) {
     D_8002A7D0 = (1 - D_8002A7D0);
@@ -678,6 +679,7 @@ RECOMP_PATCH void bossMainloop(void) {
 
                             gEXEnable(gdl++); // @theboy181 - better place for this 
                             gEXSetRefreshRate(gdl++, 60 / speedgraphframes); // @theboy181
+                            gdl = originTagFrame(gdl); // @recomp: no interpolation across a move of the origin
 
                             //recomp_printf("gunbarrel_mode = %d\n", speedgraphframes);
 
