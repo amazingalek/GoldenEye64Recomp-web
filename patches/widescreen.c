@@ -70,7 +70,38 @@ RECOMP_PATCH Gfx* bgScissorCurrentPlayerView(Gfx* gdl, s32 left, s32 top, s32 wi
 
     // @recomp: use gEXSetScissor instead
     // gDPSetScissor(gdl++, G_SC_NON_INTERLACE, left, top, width, height);
-    gEXSetScissor(gdl++, G_SC_NON_INTERLACE, G_EX_ORIGIN_LEFT, G_EX_ORIGIN_RIGHT, 0, 0, 0, 240);
+    //
+    // A room seen through a doorway or window, and the props and guards in it, are clipped to that portal's box on
+    // screen: the walls around the portal draw without hiding what is behind them, so without the clip the room's
+    // props show on the walls. An edge of the box at or past the view's edge opens onto the whole widescreen width
+    // (the portal reaches off the 4:3 screen, and screenxminf/maxf let the game see that far); an edge inside it is
+    // the portal's own and is kept, in the game's 4:3 coordinates (G_EX_ORIGIN_NONE, as a plain gDPSetScissor).
+    {
+        s32 viewright = player->viewleft + player->viewx;
+        s32 viewbottom = player->viewtop + player->viewy;
+        u32 lorigin = G_EX_ORIGIN_NONE;
+        u32 rorigin = G_EX_ORIGIN_NONE;
+
+        if (left <= (s32) player->viewleft) {
+            lorigin = G_EX_ORIGIN_LEFT;
+            left = 0;
+        }
+
+        if (top <= (s32) player->viewtop) {
+            top = 0;
+        }
+
+        if (width >= viewright) {
+            rorigin = G_EX_ORIGIN_RIGHT;
+            width = 0;
+        }
+
+        if (height >= viewbottom) {
+            height = 240;
+        }
+
+        gEXSetScissor(gdl++, G_SC_NON_INTERLACE, lorigin, rorigin, left, top, width, height);
+    }
 
     return gdl;
 }
