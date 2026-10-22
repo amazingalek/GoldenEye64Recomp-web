@@ -371,7 +371,7 @@ void addRiceHash(const std::filesystem::path &directory, const std::string &hash
 
     // Redo the hash if necessary by loading from TMEM. If it requires raw TMEM, the hash is already correct.
     std::string currentHashName;
-    if (redoHash && !RT64::TMEMHasher::requiresRawTMEM(drawTile, drawWidth, drawHeight)) {
+    if (redoHash && !RT64::TMEMHasher::requiresRawTMEM(drawTile, drawWidth, drawHeight, toHashTLUT(drawTLUT))) {
         std::vector<uint8_t> tmemBytes;
         if (!loadBytesFromFile(directory / (hashNameWithSuffix + TMEMExtension), tmemBytes)) {
             return;
@@ -440,6 +440,8 @@ void upgradeHash(const std::filesystem::path &directory, const std::string oldHa
     const uint64_t hash = RT64::TMEMHasher::hash(tmemBytes.data(), drawTile, drawWidth, drawHeight, toHashTLUT(drawTLUT), RT64::TMEMHasher::CurrentHashVersion);
     const std::string newHashName = RT64::ReplacementDatabase::hashToString(hash);
     if (oldHashName != newHashName) {
+        replacement.hashes.rt64 = newHashName;
+
         database.fixReplacement(oldHashName, replacement);
         fprintf(stdout, "Updated %s to %s in database.\n", oldHashName.c_str(), newHashName.c_str());
 

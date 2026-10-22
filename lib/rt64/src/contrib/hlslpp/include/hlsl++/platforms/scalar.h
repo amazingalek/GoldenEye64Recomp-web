@@ -1,4 +1,3 @@
-#include <stdlib.h> // for labs() on the scalar path (newer libc++ no longer includes it transitively)
 #pragma once
 
 #include <math.h>

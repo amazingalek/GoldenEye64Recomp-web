@@ -13,7 +13,9 @@
 #   include <ShellScalingAPI.h>
 #elif defined(__linux__)
 #   define Status int
-#   include <X11/extensions/Xrandr.h>
+#   if !defined(RT64_SDL_WINDOW_VULKAN)
+#      include <X11/extensions/Xrandr.h>
+#   endif
 #elif defined(__APPLE__)
 #   include "rt64_application.h"
 #   include "apple/rt64_apple.h"
@@ -48,9 +50,14 @@ namespace RT64 {
         this->listener = listener;
 
         windowHandle = window;
-#if defined(__APPLE__)
+
+#   if defined(RT64_SDL_WINDOW_VULKAN)
+        sdlWindow = window;
+#   endif
+
+#   if defined(__APPLE__)
         windowWrapper = std::make_unique<CocoaWindow>(window.window);
-#endif
+#   endif
 
         if (listener->usesWindowMessageFilter()) {
             if ((sdlWindow == nullptr) && SDL_WasInit(SDL_INIT_VIDEO)) {
@@ -222,6 +229,13 @@ namespace RT64 {
         fullScreen = newFullScreen;
 #   elif defined(__APPLE__)
         windowWrapper->toggleFullscreen();
+#   elif defined(RT64_SDL_WINDOW_VULKAN)
+        if (newFullScreen) {
+            SDL_SetWindowFullscreen(windowHandle, SDL_WINDOW_FULLSCREEN_DESKTOP);
+        } else {
+            SDL_SetWindowFullscreen(windowHandle, 0);
+        }
+        fullScreen = newFullScreen;
 #   endif
     }
 
@@ -251,7 +265,13 @@ namespace RT64 {
             return;
         }
 
-        refreshRate = displayMode.dmDisplayFrequency;
+        if (displayMode.dmDisplayFlags & DM_INTERLACED) {
+            // Interlaced modes report the refresh rate as half of what the actual refresh rate is.
+            refreshRate = displayMode.dmDisplayFrequency * 2;
+        }
+        else {
+            refreshRate = displayMode.dmDisplayFrequency;
+        }
 
         // FIXME: This function truncates refresh rates that'd otherwise round to the correct rate in most cases.
         // This hack will fix most common cases where refresh rates divisble by 10 are truncated to the wrong value.
@@ -375,7 +395,7 @@ namespace RT64 {
 #endif
 
     void ApplicationWindow::sdlCheckFilterInstallation() {
-        if (!sdlEventFilterInstalled && (sdlWindow != nullptr)) {
+        if (listener->usesWindowMessageFilter() && !sdlEventFilterInstalled && (sdlWindow != nullptr)) {
             if (!SDL_GetEventFilter(&sdlEventFilterStored, &sdlEventFilterUserdata)) {
                 sdlEventFilterStored = nullptr;
                 sdlEventFilterUserdata = nullptr;
