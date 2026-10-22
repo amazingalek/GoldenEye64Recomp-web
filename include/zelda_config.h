@@ -70,6 +70,10 @@ namespace zelda64 {
     CameraInvertMode get_analog_camera_invert_mode();
     void set_analog_camera_invert_mode(CameraInvertMode mode);
 
+    // Invert Mouse Y: InvertNone or InvertY.
+    CameraInvertMode get_mouse_invert_mode();
+    void set_mouse_invert_mode(CameraInvertMode mode);
+
     enum class AnalogCamMode {
         On,
         Off,

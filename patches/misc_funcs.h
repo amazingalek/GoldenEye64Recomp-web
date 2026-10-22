@@ -23,4 +23,11 @@ DECLARE_FUNC(s32, recomp_get_harness_skip);
 DECLARE_FUNC(s32, recomp_get_harness_dbg);
 DECLARE_FUNC(s32, recomp_get_debug_menu_enabled);
 DECLARE_FUNC(s32, recomp_get_debug_log_enabled);
+DECLARE_FUNC(void, recomp_get_mouse_deltas, f32* x, f32* y);
+DECLARE_FUNC(u32, recomp_get_mouse_actions);
+DECLARE_FUNC(s32, recomp_get_mouse_invert_y);
+DECLARE_FUNC(s32, recomp_mouse_playing);
+DECLARE_FUNC(s32, recomp_mouse_aim_held);
+DECLARE_FUNC(void, recomp_mouse_menu_shown);
+DECLARE_FUNC(void, recomp_mouse_driving_tank, s32 driving);
 #endif

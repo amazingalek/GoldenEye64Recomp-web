@@ -39,6 +39,11 @@ namespace recomp {
         DEFINE_INPUT(X_AXIS_NEG, 0, "Left") \
         DEFINE_INPUT(X_AXIS_POS, 0, "Right") \
 
+    // GoldenEye's actions that have no N64 button, which the patches perform (patches/mouse.c).
+    #define DEFINE_GAME_ACTION_INPUTS() \
+        DEFINE_INPUT(RELOAD, 0, "Reload") \
+        DEFINE_INPUT(CROUCH, 0, "Crouch")
+
     #define DEFINE_RECOMP_UI_INPUTS() \
         DEFINE_INPUT(TOGGLE_MENU, 0, "Toggle Menu") \
         DEFINE_INPUT(ACCEPT_MENU, 0, "Accept (Menu)") \
@@ -47,6 +52,7 @@ namespace recomp {
     #define DEFINE_ALL_INPUTS() \
         DEFINE_N64_BUTTON_INPUTS() \
         DEFINE_N64_AXIS_INPUTS() \
+        DEFINE_GAME_ACTION_INPUTS() \
         DEFINE_RECOMP_UI_INPUTS()
 
     // Enum containing every recomp input.
@@ -75,7 +81,14 @@ namespace recomp {
     bool get_input_digital(const InputField& field);
     bool get_input_digital(const std::span<const recomp::InputField> fields);
     void get_gyro_deltas(float* x, float* y);
+    // The mouse's motion since the last call, scaled by the mouse sensitivity.
     void get_mouse_deltas(float* x, float* y);
+    // The wheel's notches since the last call, up positive.
+    int take_mouse_wheel();
+    // Whether the mouse was used in the game more recently than a controller.
+    bool mouse_in_use();
+    // Puts the mouse's buttons, and A and D turning the tank, on controller 0's N64 input (src/game/mouse.cpp).
+    void apply_mouse_input(uint16_t* buttons, float* x);
     void get_right_analog(float* x, float* y);
 
     enum class InputDevice {
@@ -118,6 +131,9 @@ namespace recomp {
         std::vector<InputField> toggle_menu;
         std::vector<InputField> accept_menu;
         std::vector<InputField> apply_menu;
+
+        std::vector<InputField> reload;
+        std::vector<InputField> crouch;
     };
 
     // Returned for inputs without a default mapping. Must outlive the call, since the function returns a reference.
@@ -146,6 +162,8 @@ namespace recomp {
             case GameInput::TOGGLE_MENU: return defaults.toggle_menu;
             case GameInput::ACCEPT_MENU: return defaults.accept_menu;
             case GameInput::APPLY_MENU: return defaults.apply_menu;
+            case GameInput::RELOAD: return defaults.reload;
+            case GameInput::CROUCH: return defaults.crouch;
             default: return empty_input_mapping;
         }
     }

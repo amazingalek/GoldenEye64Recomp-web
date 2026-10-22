@@ -1,4 +1,5 @@
 #include <atomic>
+#include <chrono>
 #include <mutex>
 
 #include "ultramodern/ultramodern.hpp"
@@ -33,10 +34,12 @@ static struct {
     std::unordered_map<SDL_JoystickID, ControllerState> controller_states;
     
     std::array<float, 2> rotation_delta{};
-    std::array<float, 2> mouse_delta{};
     std::mutex pending_input_mutex;
     std::array<float, 2> pending_rotation_delta{};
     std::array<float, 2> pending_mouse_delta{};
+    std::chrono::steady_clock::time_point last_mouse_delta_take{};
+    // Whether the mouse was used in the game more recently than a controller.
+    std::atomic_bool mouse_in_use = false;
 
     float cur_rumble;
     bool rumble_active;
@@ -166,13 +169,21 @@ bool sdl_event_filter(void* userdata, SDL_Event* event) {
         break;
     }
     case SDL_EventType::SDL_MOUSEWHEEL:
-        {
+        if (!recomp::game_input_disabled()) {
             SDL_MouseWheelEvent* wheel_event = &event->wheel;    
             InputState.mouse_wheel_pos.fetch_add(wheel_event->y * (wheel_event->direction == SDL_MOUSEWHEEL_FLIPPED ? -1 : 1));
+            InputState.mouse_in_use = true;
+        }
+        queue_if_enabled(event);
+        break;
+    case SDL_EventType::SDL_MOUSEBUTTONDOWN:
+        if (!recomp::game_input_disabled()) {
+            InputState.mouse_in_use = true;
         }
         queue_if_enabled(event);
         break;
     case SDL_EventType::SDL_CONTROLLERBUTTONDOWN:
+        InputState.mouse_in_use = false;
         if (scanning_device != recomp::InputDevice::COUNT) {
             auto menuToggleBinding0 = recomp::get_input_binding(recomp::GameInput::TOGGLE_MENU, 0, recomp::InputDevice::Controller);
             auto menuToggleBinding1 = recomp::get_input_binding(recomp::GameInput::TOGGLE_MENU, 1, recomp::InputDevice::Controller);
@@ -200,6 +211,9 @@ bool sdl_event_filter(void* userdata, SDL_Event* event) {
         }
         break;
     case SDL_EventType::SDL_CONTROLLERAXISMOTION:
+        if (std::abs(event->caxis.value * (1/32768.0f)) > axis_threshold) {
+            InputState.mouse_in_use = false;
+        }
         if (scanning_device == recomp::InputDevice::Controller) {
             auto scanned_input_index = recomp::get_scanned_input_index();
             if (scanned_input_index == static_cast<int>(recomp::GameInput::TOGGLE_MENU) ||
@@ -275,6 +289,7 @@ bool sdl_event_filter(void* userdata, SDL_Event* event) {
             std::lock_guard lock{ InputState.pending_input_mutex };
             InputState.pending_mouse_delta[0] += motion_event->xrel;
             InputState.pending_mouse_delta[1] += motion_event->yrel;
+            InputState.mouse_in_use = true;
         }
     default:
         queue_if_enabled(event);
@@ -308,30 +323,35 @@ constexpr SDL_GameControllerButton SDL_CONTROLLER_BUTTON_EAST = SDL_CONTROLLER_B
 constexpr SDL_GameControllerButton SDL_CONTROLLER_BUTTON_WEST = SDL_CONTROLLER_BUTTON_X;
 constexpr SDL_GameControllerButton SDL_CONTROLLER_BUTTON_NORTH = SDL_CONTROLLER_BUTTON_Y;
 
+// As the PC ports have it, with the mouse turning Bond and aiming (src/game/mouse.cpp): W and S walk, A and D strafe
+// (C-left and C-right), the arrows turn and look, F fires as left click does, Left Shift is R (the game's aim mode),
+// Space or Q is A (next weapon), E is B (use), X is L, and Return or Tab is Start (the watch).
 const recomp::DefaultN64Mappings recomp::default_n64_keyboard_mappings = {
     .a = {
-        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_SPACE}
-    },
-    .b = {
-        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_LSHIFT}
-    },
-    .l = {
-        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_E}
-    },
-    .r = {
-        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_R}
-    },
-    .z = {
+        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_SPACE},
         {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_Q}
     },
+    .b = {
+        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_E}
+    },
+    .l = {
+        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_X}
+    },
+    .r = {
+        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_LSHIFT}
+    },
+    .z = {
+        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_F}
+    },
     .start = {
-        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_RETURN}
+        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_RETURN},
+        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_TAB}
     },
     .c_left = {
-        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_LEFT}
+        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_A}
     },
     .c_right = {
-        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_RIGHT}
+        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_D}
     },
     .c_up = {
         {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_UP}
@@ -352,10 +372,10 @@ const recomp::DefaultN64Mappings recomp::default_n64_keyboard_mappings = {
         {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_K}
     },
     .analog_left = {
-        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_A}
+        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_LEFT}
     },
     .analog_right = {
-        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_D}
+        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_RIGHT}
     },
     .analog_up = {
         {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_W}
@@ -371,6 +391,13 @@ const recomp::DefaultN64Mappings recomp::default_n64_keyboard_mappings = {
     },
     .apply_menu = {
         {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_F}
+    },
+    .reload = {
+        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_R}
+    },
+    .crouch = {
+        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_LCTRL},
+        {.input_type = (uint32_t)InputType::Keyboard, .input_id = SDL_SCANCODE_C}
     }
 };
 
@@ -462,15 +489,12 @@ void recomp::poll_inputs() {
         }
     }
 
-    // Read the deltas while resetting them to zero.
+    // Read the deltas while resetting them to zero. The mouse's are read by get_mouse_deltas instead.
     {
         std::lock_guard lock{ InputState.pending_input_mutex };
         
         InputState.rotation_delta = InputState.pending_rotation_delta;
         InputState.pending_rotation_delta = { 0.0f, 0.0f };
-
-        InputState.mouse_delta = InputState.pending_mouse_delta;
-        InputState.pending_mouse_delta = { 0.0f, 0.0f };
     }
     
     // Quicksaving is disabled for now and will likely have more limited functionality
@@ -655,11 +679,32 @@ void recomp::get_gyro_deltas(float* x, float* y) {
     *y = cur_rotation_delta[1] * sensitivity;
 }
 
+// The motion gathers until the game takes it, once a tick, which isn't once a poll: the game reads the controller at
+// its own rate. Motion it hasn't taken for a while was made while it wasn't reading it (a cutscene, a pause, a menu of
+// its own) and is dropped, rather than turning the view all at once afterwards.
 void recomp::get_mouse_deltas(float* x, float* y) {
-    std::array<float, 2> cur_mouse_delta = InputState.mouse_delta;
+    constexpr auto stale_mouse_delta = std::chrono::milliseconds(100);
+    std::array<float, 2> cur_mouse_delta{};
+    {
+        std::lock_guard lock{ InputState.pending_input_mutex };
+        auto now = std::chrono::steady_clock::now();
+        if (now - InputState.last_mouse_delta_take < stale_mouse_delta) {
+            cur_mouse_delta = InputState.pending_mouse_delta;
+        }
+        InputState.pending_mouse_delta = { 0.0f, 0.0f };
+        InputState.last_mouse_delta_take = now;
+    }
     float sensitivity = (float)recomp::get_mouse_sensitivity() / 100.0f;
     *x = cur_mouse_delta[0] * sensitivity;
     *y = cur_mouse_delta[1] * sensitivity;
+}
+
+int recomp::take_mouse_wheel() {
+    return InputState.mouse_wheel_pos.exchange(0);
+}
+
+bool recomp::mouse_in_use() {
+    return InputState.mouse_in_use;
 }
 
 void recomp::apply_joystick_deadzone(float x_in, float y_in, float* x_out, float* y_out) {

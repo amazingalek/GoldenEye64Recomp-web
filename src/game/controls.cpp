@@ -107,6 +107,8 @@ bool recomp::get_n64_input(int controller_num, uint16_t* buttons_out, float* x_o
 
         cur_y = recomp::get_input_analog(keyboard_input_mappings[(size_t)GameInput::Y_AXIS_POS])
                 - recomp::get_input_analog(keyboard_input_mappings[(size_t)GameInput::Y_AXIS_NEG]) + joystick_y;
+
+        recomp::apply_mouse_input(&cur_buttons, &cur_x);
     }
 
     // Test harness (tools/harness.sh): GE_HARNESS_BUTTONS=<N64 button mask> holds those buttons, e.g. 0x0010 = R.
