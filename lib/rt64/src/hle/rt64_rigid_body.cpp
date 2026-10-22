@@ -49,20 +49,11 @@ namespace RT64 {
             const hlslpp::float3x3 invPrevRotation = hlslpp::inverse(rotationFrom3x3(extract3x3(prevTransform)));
             const hlslpp::float3x3 diffRotation = hlslpp::mul(invPrevRotation, rotationFrom3x3(extract3x3(curTransform)));
             float diffTrace = traceFrom3x3(diffRotation);
-            float traceCos = std::min(std::max((diffTrace - 1.0f) / 2.0f, -1.0f), 1.0f); // clamp against float error producing NaN
-            float prevAngularVelocity = angularVelocity;
-            float curAngularVelocity = std::acos(traceCos);
+            float curAngularVelocity = std::acos((diffTrace - 1.0f) / 2.0f);
             angularVelocity = curAngularVelocity;
 
-            // Mirror the linear teleport heuristic: interpolate steady rotations (even fast ones),
-            // but snap when the rotation jumps suddenly — which is what happens when frame matching
-            // pairs up unrelated transforms (e.g. recycled dynamic matrix buffers) and would otherwise
-            // sweep garbage geometry across the screen for a frame.
-            const float Epsilon = 1e-6f;
-            const float AngularVelocityTolerance = 0.35f; // radians/frame (~20 deg); normal motion stays below this
-            const float AngularMagnitudeThreshold = 10.0f;
-            lerpRotation = (curAngularVelocity < AngularVelocityTolerance) ||
-                           ((curAngularVelocity / std::max(prevAngularVelocity, Epsilon)) < AngularMagnitudeThreshold);
+            // FIXME: Defaults to always interpolate.
+            lerpRotation = true;
 
             // If scale or skew are also set to auto, use the result of rotation auto calculation for their value as well.
             if (scaleInterpolation == G_EX_COMPONENT_AUTO) {
@@ -102,12 +93,45 @@ namespace RT64 {
             return lerpMatrixComponents(fallbackPrev, fallbackCur, lerpTranslation, lerpRotation, lerpPerspective, weight);
         }
 
-        const DecomposedTransform& prevTransform = transforms[transformIndex ^ 1];
-        const DecomposedTransform& curTransform = transforms[transformIndex];
+        const DecomposedTransform &prevTransform = transforms[transformIndex ^ 1];
+        DecomposedTransform prevTransformCopy = prevTransform;
+        const DecomposedTransform &curTransform = transforms[transformIndex];
+        DecomposedTransform lerpedTransform;
+        
+        // When the coordinate system is flipped between transforms due to a different sign in the determinant, we bias the rotation and scale of the
+        // previous transform to be similar to the new one by producing a transform that produces an equivalent matrix but with a rotation and scale
+        // that are closer to what's intended. This is necessary to improve interpolation between objects that use mirroring in animations.
+        if (prevTransformCopy.coordinateFlip != curTransform.coordinateFlip) {
+            constexpr float Pi = 3.14159265f;
+            const hlslpp::quaternion &prevRot = prevTransformCopy.rotation;
+            hlslpp::quaternion xRot = hlslpp::mul(prevTransformCopy.rotation, hlslpp::quaternion::rotation_axis(hlslpp::float3(1.0f, 0.0, 0.0f), Pi));
+            hlslpp::quaternion yRot = hlslpp::mul(prevTransformCopy.rotation, hlslpp::quaternion::rotation_axis(hlslpp::float3(0.0f, 1.0, 0.0f), Pi));
+            hlslpp::quaternion zRot = hlslpp::mul(prevTransformCopy.rotation, hlslpp::quaternion::rotation_axis(hlslpp::float3(0.0f, 0.0, 1.0f), Pi));
+            float rotDotProduct = abs(hlslpp::dot(prevTransformCopy.rotation, curTransform.rotation));
+            float xRotDotProduct = abs(hlslpp::dot(xRot, curTransform.rotation));
+            float yRotDotProduct = abs(hlslpp::dot(yRot, curTransform.rotation));
+            float zRotDotProduct = abs(hlslpp::dot(zRot, curTransform.rotation));
+            if (xRotDotProduct > rotDotProduct) {
+                prevTransformCopy.rotation = xRot;
+                prevTransformCopy.scale = hlslpp::float3(prevTransform.scale.x, -prevTransform.scale.y, -prevTransform.scale.z);
+                rotDotProduct = xRotDotProduct;
+            }
+
+            if (yRotDotProduct > rotDotProduct) {
+                prevTransformCopy.rotation = yRot;
+                prevTransformCopy.scale = hlslpp::float3(-prevTransform.scale.x, prevTransform.scale.y, -prevTransform.scale.z);
+                rotDotProduct = yRotDotProduct;
+            }
+
+            if (zRotDotProduct > rotDotProduct) {
+                prevTransformCopy.rotation = zRot;
+                prevTransformCopy.scale = hlslpp::float3(-prevTransform.scale.x, -prevTransform.scale.y, prevTransform.scale.z);
+            }
+        }
 
         // Lerp the two transforms.
-        DecomposedTransform lerpedTransform = lerpTransforms(prevTransform, curTransform, weight,
-            lerpTranslation, lerpRotation, lerpScale, lerpSkew, lerpPerspective, slerp);
+        lerpedTransform = lerpTransforms(prevTransformCopy, curTransform, weight, lerpTranslation, lerpRotation, lerpScale, lerpSkew, lerpPerspective, slerp);
+
         // Compose a matrix from the resultant transform.
         return recomposeMatrix(lerpedTransform.rotation, lerpedTransform.scale, lerpedTransform.skew, lerpedTransform.translation, lerpedTransform.perspective);
     }
