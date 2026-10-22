@@ -15,6 +15,15 @@
 
 #ifdef GE_LIVE_GAMECODE
 
+// Windows.h first: rabbitizer (via recompiler/context.h) defines CONST as [[gnu::const]], which breaks the Windows
+// headers if they come after it, and librecomp/game.hpp pulls them in through ultramodern.
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
@@ -39,15 +48,6 @@
 #include "common/RabbitizerConfig.h"
 
 #include "ge_dump_toml.h"
-
-// Last, so its macros (min, max, near, far, ...) can't reach the headers above.
-#ifdef _WIN32
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#endif
 
 // librecomp/ultramodern runtime hooks (all extern "C" in their homes).
 extern "C" {
