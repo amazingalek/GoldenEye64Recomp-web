@@ -22,6 +22,8 @@ MIPS_LD="${MIPS_LD:-ld.lld}"
 # LLVM's lld-link rather than Visual Studio's link.exe: in Git Bash, /usr/bin/link (coreutils) comes first on
 # PATH, and CMake can pick that up as the linker.
 WIN_LINKER="${WIN_LINKER:-lld-link}"
+# CMake 4.x compat for old third-party cmake_minimum_required declarations (lunasvg and others).
+export CMAKE_POLICY_VERSION_MINIMUM=3.5
 
 echo "== [1/4] Checking dependencies"
 MISSING=""

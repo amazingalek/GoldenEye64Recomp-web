@@ -2,7 +2,7 @@
 [![Releases](https://img.shields.io/github/v/release/marzer/tomlplusplus?style=flat-square)](https://github.com/marzer/tomlplusplus/releases)
 [![C++17](docs/images/badge-C++17.svg)][cpp_compilers]
 [![TOML](docs/images/badge-TOML.svg)][v1.0.0]
-[![MIT license](docs/images/badge-license-MIT.svg)](./LICENSE)
+[![MIT license](docs/images/badge-license-MIT.svg)](LICENSE)
 [![ci](https://github.com/marzer/tomlplusplus/actions/workflows/ci.yaml/badge.svg?branch=master)](https://github.com/marzer/tomlplusplus/actions/workflows/ci.yaml)
 [![Mentioned in Awesome C++](docs/images/badge-awesome.svg)](https://github.com/fffaraz/awesome-cpp)
 [![Sponsor](docs/images/badge-sponsor.svg)](https://github.com/sponsors/marzer)
@@ -185,7 +185,7 @@ git submodule add --depth 1 https://github.com/marzer/tomlplusplus.git tomlplusp
 The C++ tooling ecosystem is a fractal nightmare of unbridled chaos so naturally I'm not up-to-speed with all of the
 available packaging and integration options. I'm always happy to see new ones supported, though! If there's some
 integration you'd like to see and have the technical know-how to make it happen, feel free to
-[make a pull request](./CONTRIBUTING.md).
+[make a pull request](CONTRIBUTING.md).
 
 ### What about dependencies?
 

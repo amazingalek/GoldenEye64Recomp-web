@@ -69,7 +69,7 @@ cd build-debug && ninja && ninja test               \
 ## Testing with the [toml-test] suite
 
 As an optional extra you may wish to test against the official test TOML test suite, [toml-test]. See the
-instructions at [toml-test/README](./toml-test/README.md). Note that the toml++ tests already consume tests from the
+instructions at [toml-test/README](toml-test/README.md). Note that the toml++ tests already consume tests from the
 offical suite via a C++ code-generation script so you are not expected to take this extra step as part of contributing
 to the library.
 
