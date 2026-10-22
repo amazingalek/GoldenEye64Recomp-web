@@ -25,7 +25,7 @@ your ROM.
 
 ## Requirements
 
-**Both platforms**
+**All platforms**
 
 - Your own GoldenEye 007 **NTSC-U** ROM dump, big-endian `.z64`,
   sha1 `abe01e4aeb033b6c0836819f549c791b26cfde83`
@@ -45,6 +45,18 @@ your ROM.
 - `cmake ninja-build clang lld python3 libsdl2-dev libfreetype-dev libgtk-3-dev xdelta3`
   (Debian/Ubuntu names; the build script checks and tells you what's missing)
 
+**Windows**
+
+- Windows 10 or 11 (x64), a Direct3D 12 or Vulkan GPU
+- Visual Studio 2022 or its Build Tools, with the C++ workload (for the MSVC
+  libraries and the Windows SDK)
+- [LLVM](https://github.com/llvm/llvm-project/releases) (`clang-cl`, `ld.lld`),
+  CMake, Ninja, Python 3 and Git for Windows
+- [MSYS2](https://www.msys2.org) for the gameplay patches, which are MIPS code:
+  `pacman -S mingw-w64-clang-x86_64-clang make` (LLVM's Windows release has no
+  MIPS target). Put MSYS2's `make` on `PATH` and point `MIPS_CC` at its clang,
+  e.g. `MIPS_CC=/c/msys64/clang64/bin/clang.exe ./build_windows.sh`
+
 ## Build
 
 There are two build modes. Both need your ROM; they differ in *when* the game
@@ -63,6 +75,7 @@ cp /path/to/your/goldeneye.z64 baserom.u.z64
 
 ./build_macos.sh          # macOS
 ./build_linux.sh          # Linux
+./build_windows.sh        # Windows, from Git Bash
 ```
 
 (If you already cloned without `--recurse-submodules`, don't worry — the build
@@ -104,8 +117,9 @@ or open **GoldenEye 007 Recompiled.app** on macOS.
 
 On first launch, pick your ROM in the picker — a plain retail NTSC-U dump works
 directly, and the app converts it for you. Settings and the stored ROM live in
-`~/Library/Application Support/GoldenRecomp` (macOS) or `~/.config/GoldenRecomp`
-(Linux); delete the stored `.z64` there if you ever want the ROM picker back.
+`~/Library/Application Support/GoldenRecomp` (macOS), `~/.config/GoldenRecomp`
+(Linux) or `%LOCALAPPDATA%\GoldenRecomp` (Windows); delete the stored `.z64` there
+if you ever want the ROM picker back.
 
 ## State
 
