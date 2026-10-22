@@ -252,6 +252,7 @@ target_include_directories(GoldenRecomp PRIVATE
     ${CMAKE_SOURCE_DIR}/lib/RmlUi/Backends
     ${CMAKE_SOURCE_DIR}/lib/rt64/src/contrib
     ${CMAKE_SOURCE_DIR}/lib/rt64/src/contrib/hlslpp/include
+    ${CMAKE_SOURCE_DIR}/lib/rt64/src/contrib/plume
     ${CMAKE_SOURCE_DIR}/lib/rt64/src/contrib/dxc/inc
     ${CMAKE_SOURCE_DIR}/lib/rt64/src
     ${CMAKE_SOURCE_DIR}/lib/rt64/src/rhi
