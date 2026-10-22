@@ -51,6 +51,12 @@ if (WIN32)
 endif()
 
 set(RT64_STATIC TRUE)
+# RT64's bundled zstd adds /clang:-Wall under clang-cl, for warnings only; ccache won't cache a call with it.
+# Pre-answering zstd's flag check skips it.
+if (CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC" AND CMAKE_CXX_COMPILER_LAUNCHER MATCHES "ccache")
+    set(C_FLAG_CLANG_WALL OFF CACHE INTERNAL "")
+    set(CXX_FLAG_CLANG_WALL OFF CACHE INTERNAL "")
+endif()
 add_subdirectory(${CMAKE_SOURCE_DIR}/lib/rt64 ${CMAKE_BINARY_DIR}/rt64)
 
 # set(BUILD_SHARED_LIBS_SAVED "${BUILD_SHARED_LIBS}")
