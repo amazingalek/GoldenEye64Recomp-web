@@ -277,7 +277,8 @@ jobs:
           export PATH="$PATH:/c/msys64/usr/bin"
           ccache -z
           ./build_windows.sh --clean
-          ccache -s
+          # Verbose: lists why calls are uncacheable (all 670 were in the first Windows runs).
+          ccache -sv
 
       - name: Package
         run: |
