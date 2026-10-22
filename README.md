@@ -8,8 +8,8 @@
 > [N64Recomp-browser](https://github.com/amazingalek/N64Recomp-browser)), and everything on it past cblock85's and
 > podulator's commits was written by AI (Claude). It is not made, endorsed or supported by GoldenEye64Recomp's or
 > GoldenRecomp's authors, and please don't take issues with this fork to them. Only fixes for bugs the desktop build
-> has too are offered upstream, to podulator's, each a pull request of its own on its code, without the web or mouse
-> code, saying it is AI-written.
+> has too, the keyboard and mouse and a Windows build are offered upstream, to podulator's, each a pull request of its
+> own on its code, without the web code, saying it is AI-written.
 > Building it: [BUILDING.md](BUILDING.md).
 >
 > This port is here to build out and test N64Recomp-browser's web support on another game than the one it was written
