@@ -79,7 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Provide macros to allow using gte instructions in both assembly and C. Those
-  are provided under the [`docs/r3000gte`](./docs/r3000gte/) folder of the repository
+  are provided under the [`docs/r3000gte`](docs/r3000gte/) folder of the repository
 
 ### Fixed
 
