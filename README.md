@@ -141,9 +141,9 @@ ports of GoldenEye and Perfect Dark do:
   frees the pointer) and **Invert Mouse Y**. The pointer is locked to the
   window while the game plays and freed by any menu (Escape).
 - Reload and Crouch can be rebound in Settings > Controls like the N64's
-  buttons. A settings folder from an earlier version keeps its key bindings and
-  its Mouse Sensitivity of 0: use **Reset to defaults** in Controls and set
-  Mouse Sensitivity once to get the layout above.
+  buttons. A settings folder from an earlier version keeps its key bindings
+  (R stays the N64's R as well as Reload): use **Reset to defaults** in
+  Controls to get the layout above.
 
 ## State
 

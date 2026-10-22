@@ -224,7 +224,8 @@ bool save_general_config(const std::filesystem::path& path) {
     recomp::to_json(config_json["background_input_mode"], recomp::get_background_input_mode());
     config_json["rumble_strength"] = recomp::get_rumble_strength();
     config_json["gyro_sensitivity"] = recomp::get_gyro_sensitivity();
-    config_json["mouse_sensitivity"] = recomp::get_mouse_sensitivity();
+    // Saved under a new key: earlier versions hid the slider and saved its 0, which was nobody's choice.
+    config_json["mouse_look_sensitivity"] = recomp::get_mouse_sensitivity();
     config_json["mouse_invert_mode"] = zelda64::get_mouse_invert_mode();
     config_json["joystick_deadzone"] = recomp::get_joystick_deadzone();
     config_json["autosave_mode"] = zelda64::get_autosave_mode();
@@ -241,7 +242,7 @@ void set_general_settings_from_json(const nlohmann::json& config_json) {
     recomp::set_background_input_mode(from_or_default(config_json, "background_input_mode", recomp::BackgroundInputMode::On));
     recomp::set_rumble_strength(from_or_default(config_json, "rumble_strength", 50));
     recomp::set_gyro_sensitivity(from_or_default(config_json, "gyro_sensitivity", 50));
-    recomp::set_mouse_sensitivity(from_or_default(config_json, "mouse_sensitivity", 50));
+    recomp::set_mouse_sensitivity(from_or_default(config_json, "mouse_look_sensitivity", 50));
     zelda64::set_mouse_invert_mode(from_or_default(config_json, "mouse_invert_mode", zelda64::CameraInvertMode::InvertNone));
     recomp::set_joystick_deadzone(from_or_default(config_json, "joystick_deadzone", 5));
     zelda64::set_autosave_mode(from_or_default(config_json, "autosave_mode", zelda64::AutosaveMode::On));
