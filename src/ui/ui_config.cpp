@@ -291,6 +291,7 @@ struct ControlOptionsContext {
     zelda64::CameraInvertMode camera_invert_mode;
 	zelda64::AnalogCamMode analog_cam_mode;
     zelda64::CameraInvertMode analog_camera_invert_mode;
+    zelda64::CameraInvertMode mouse_invert_mode;
 };
 
 ControlOptionsContext control_options_context;
@@ -408,6 +409,17 @@ void zelda64::set_analog_camera_invert_mode(zelda64::CameraInvertMode mode) {
 	control_options_context.analog_camera_invert_mode = mode;
 	if (general_model_handle) {
 		general_model_handle.DirtyVariable("analog_camera_invert_mode");
+	}
+}
+
+zelda64::CameraInvertMode zelda64::get_mouse_invert_mode() {
+	return control_options_context.mouse_invert_mode;
+}
+
+void zelda64::set_mouse_invert_mode(zelda64::CameraInvertMode mode) {
+	control_options_context.mouse_invert_mode = mode;
+	if (general_model_handle) {
+		general_model_handle.DirtyVariable("mouse_invert_mode");
 	}
 }
 
@@ -965,6 +977,7 @@ public:
 		bind_option(constructor, "camera_invert_mode", &control_options_context.camera_invert_mode);
 		bind_option(constructor, "analog_cam_mode", &control_options_context.analog_cam_mode);
 		bind_option(constructor, "analog_camera_invert_mode", &control_options_context.analog_camera_invert_mode);
+		bind_option(constructor, "mouse_invert_mode", &control_options_context.mouse_invert_mode);
 
 		general_model_handle = constructor.GetModelHandle();
 	}

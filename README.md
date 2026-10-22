@@ -107,6 +107,44 @@ directly, and the app converts it for you. Settings and the stored ROM live in
 `~/Library/Application Support/GoldenRecomp` (macOS) or `~/.config/GoldenRecomp`
 (Linux); delete the stored `.z64` there if you ever want the ROM picker back.
 
+## Keyboard and mouse
+
+Besides a controller, the game plays with keyboard and mouse the way the PC
+ports of GoldenEye and Perfect Dark do:
+
+| Action | Default |
+|---|---|
+| Look and turn | mouse (or the arrow keys) |
+| Walk, strafe | W / S, A / D |
+| Fire | left click (or F) |
+| Aim | right click: shows the crosshair and zooms the weapons that zoom, without stopping Bond |
+| Next / previous weapon | mouse wheel (or Space / Q for next) |
+| Zoom the sniper rifle or camera | mouse wheel while aiming |
+| Reload | R |
+| Crouch (toggle) | Left Ctrl or C |
+| The game's own aim mode (R) | Left Shift |
+| Use (B) | E |
+| L | X |
+| Watch (Start) | Return or Tab |
+
+- The mouse turns Bond at 0.055 degrees a count at the default 50% Mouse
+  Sensitivity, as the Perfect Dark port does, finer as the view zooms. Shots go
+  to the middle of the screen.
+- While the mouse plays, the game's Auto-Aim and Look Ahead are off, so the aim
+  stays where the mouse puts it; with a controller they are as the game's
+  options set them. Whichever of the two was used last decides.
+- In the tank, A and D turn it and the mouse swings its turret.
+- On the watch's inventory page, W and S step one item a press.
+- In the menus' folders (file, mission and difficulty select) the mouse moves
+  the game's cursor, left click selects and right click goes back.
+- Settings > General has **Mouse Sensitivity** (0 turns mouse look off and
+  frees the pointer) and **Invert Mouse Y**. The pointer is locked to the
+  window while the game plays and freed by any menu (Escape).
+- Reload and Crouch can be rebound in Settings > Controls like the N64's
+  buttons. A settings folder from an earlier version keeps its key bindings and
+  its Mouse Sensitivity of 0: use **Reset to defaults** in Controls and set
+  Mouse Sensitivity once to get the layout above.
+
 ## State
 
 **Working:** the full intro (Nintendo and Rareware logos, gunbarrel), menus,

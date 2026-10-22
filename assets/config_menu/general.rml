@@ -56,7 +56,7 @@
                                 data-checked="background_input_mode"
                                 value="On"
                                 id="bg_input_enabled"
-                                style="nav-up: #joystick_deadzone_input; nav-down: #autosave_enabled"
+                                style="nav-up: #joystick_deadzone_input; nav-down: #mouse_sensitivity_input"
                             />
                             <label class="config-option__tab-label" for="bg_input_enabled">On</label>
 
@@ -68,9 +68,58 @@
                                 data-checked="background_input_mode"
                                 value="Off"
                                 id="bg_input_disabled"
-                                style="nav-up: #joystick_deadzone_input; nav-down: #autosave_disabled"
+                                style="nav-up: #joystick_deadzone_input; nav-down: #mouse_sensitivity_input"
                             />
                             <label class="config-option__tab-label" for="bg_input_disabled">Off</label>
+                        </div>
+                    </div>
+
+                    <!-- mouse sensitivity -->
+                    <div class="config-option" data-event-mouseover="set_cur_config_index(3)">
+                        <label class="config-option__title">Mouse Sensitivity</label>
+                        <div class="config-option__range-wrapper config-option__list">
+                            <label class="config-option__range-label">{{mouse_sensitivity}}%</label>
+                            <input
+                                class="nav-vert"
+                                data-event-blur="set_cur_config_index(-1)"
+                                data-event-focus="set_cur_config_index(3)"
+                                id="mouse_sensitivity_input"
+                                type="range"
+                                min="0"
+                                max="100"
+                                style="flex: 1; margin: 0dp; nav-up: #bg_input_enabled; nav-down: #mouse_invert_off"
+                                data-value="mouse_sensitivity"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- invert mouse y -->
+                    <div class="config-option" data-event-mouseover="set_cur_config_index(10)">
+                        <label class="config-option__title">Invert Mouse Y</label>
+                        <div class="config-option__list">
+                            <input
+                                type="radio"
+                                data-event-blur="set_cur_config_index(-1)"
+                                data-event-focus="set_cur_config_index(10)"
+                                name="mouse_invert_mode"
+                                data-checked="mouse_invert_mode"
+                                value="InvertNone"
+                                id="mouse_invert_off"
+                                style="nav-up: #mouse_sensitivity_input"
+                            />
+                            <label class="config-option__tab-label" for="mouse_invert_off">Off</label>
+
+                            <input
+                                type="radio"
+                                data-event-blur="set_cur_config_index(-1)"
+                                data-event-focus="set_cur_config_index(10)"
+                                name="mouse_invert_mode"
+                                data-checked="mouse_invert_mode"
+                                value="InvertY"
+                                id="mouse_invert_on"
+                                style="nav-up: #mouse_sensitivity_input"
+                            />
+                            <label class="config-option__tab-label" for="mouse_invert_on">On</label>
                         </div>
                     </div>
                 </div>
@@ -89,10 +138,10 @@
                         <b>Note: To recalibrate controller gyro, set the controller down on a still, flat surface for 5 seconds.</b>
                     </p>
                     <p data-if="cur_config_index == 3">
-                        Controls the sensitivity of mouse aiming when using items in first person. <b>Setting this to zero will disable mouse aiming.</b>
+                        How far the mouse turns Bond, aiming or not. At 50% a count turns him 0.055 degrees, as the Perfect Dark PC port's default does. <b>Setting this to zero turns mouse look off</b> and frees the pointer.
                         <br />
                         <br />
-                        <b>Note: This option does not allow mouse buttons to activate items. Mouse aiming is intended to be used with inputs that are mapped to mouse movement, such as gyro on Steam Deck.</b>
+                        Left click fires and right click aims: it shows the crosshair and zooms the weapons that zoom, and Bond moves as he does without it. The game's Auto-Aim and Look Ahead are off while the mouse plays. The wheel changes weapon, or zooms the sniper rifle while aiming. In the game's menus left click selects and right click goes back. In the tank A and D turn it and the mouse turns its turret.
                     </p>
                     <p data-if="cur_config_index == 4">
                         Applies a deadzone to joystick inputs.
@@ -125,6 +174,9 @@
                     </p>
                     <p data-if="cur_config_index == 9">
                         Inverts the camera controls for the analog camera if it's enabled. <b>None</b> is the default.
+                    </p>
+                    <p data-if="cur_config_index == 10">
+                        Moving the mouse up looks down. The menus' cursor follows the mouse either way.
                     </p>
                 </div>
             </div>
