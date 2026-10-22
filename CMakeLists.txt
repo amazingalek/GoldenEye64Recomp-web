@@ -17,9 +17,16 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_SIMULATE_ID STREQUAL "M
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-everything /W4")
 endif()
 
-# Lets ccache cache clang-cl compiles, here and in every subproject (see the file).
-include(${CMAKE_SOURCE_DIR}/cmake/ccache_clang_cl.cmake)
-set(CMAKE_PROJECT_INCLUDE ${CMAKE_SOURCE_DIR}/cmake/ccache_clang_cl.cmake)
+# clang-cl with ccache (CI): CMake asks clang-cl for Ninja's dependency files through -clang:-MD/-MF/-MT, and
+# ccache refuses to cache anything with a /clang: option. MSVC-style /showIncludes gives Ninja the same
+# information and ccache supports it.
+if (CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC" AND CMAKE_GENERATOR MATCHES "Ninja"
+    AND CMAKE_CXX_COMPILER_LAUNCHER MATCHES "ccache")
+    foreach (lang C CXX)
+        set(CMAKE_DEPFILE_FLAGS_${lang} "/showIncludes")
+        set(CMAKE_${lang}_DEPFILE_FORMAT msvc)
+    endforeach()
+endif()
 
 # Opt out of constexpr mutex constructor on windows to prevent vcredist issues
 if (WIN32)
