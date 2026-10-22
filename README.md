@@ -112,3 +112,65 @@ ROM you load, so the launcher takes the retail dump as it is.
   gone with the build they drive: this fork builds with CMake alone (BUILDING.md). The patches' harness hooks stay,
   read from the same `GE_HARNESS_*` variables (`src/game/recomp_api.cpp`), and its `--debug-log` has nothing to turn
   on here, where the patches print no per-frame traces.
+
+## Keyboard and mouse
+
+The page and the desktop build play the game with keyboard and mouse as the PC ports do (the design of
+[goldeneye-pc-port](https://github.com/jkdansereau/goldeneye-pc-port)'s `port/src/input.c`, and the feel of the
+[Perfect Dark port](https://github.com/fgsfdsfgs/perfect_dark)), all of it in this fork's own code: `patches/mouse.c` is
+the game's side and `src/game/mouse_keyboard.cpp` the program's.
+
+- The mouse turns Bond and tilts his view, 0.055 degrees a count at the default 50% as Perfect Dark's port does, less
+  as the view zooms, aiming or not. Right click aims and does nothing else: it shows the crosshair, which stays in the
+  middle of the screen where the shots go, and zooms the weapons that zoom, as Perfect Dark's port's Locked mouse aim
+  and goldeneye-pc-port's Centred aim do, while Bond walks, strafes and looks as he does without it. It isn't the
+  game's aim mode (R), which would stop him: there the stick moves the crosshair instead of walking him and C-left and
+  C-right lean. While it aims the sniper rifle or the camera, the wheel zooms it further, up in and down out. Mouse up
+  looks up, whatever the game's Look Up/Down option says, unless Settings > General > Invert Mouse Y is on.
+- The game's auto-aim (its Auto-Aim option) is off while the mouse plays, the pointer locked to the game: shots go
+  where the mouse points, and right click's crosshair stays in the middle, rather than onto a guard near it. With a pad,
+  or Mouse Sensitivity at 0, the saved option is as it was.
+- In the tank (Runway, St. Petersburg) A and D turn it, as the arrows do, and W and S drive it, rather than A and D
+  swinging its turret a degree a tick, which is what C-left and C-right do there; the mouse swings the turret and tilts
+  the view instead (the tank works out Bond's view from its own angle and its turret's, so the mouse can't turn it as
+  it turns Bond). In the game's aim mode (Left Shift) the tank's controls are the game's own.
+- On the watch's inventory page W and S step through the items an item a press, and held, after 0.4 s at 7.5 a
+  second, as a PC's list does, rather than an item each of the game's 60 ticks a second, which is how far the game
+  moves its cursor with the stick pushed all the way, as the keys push it. The Up and Down arrows (C-up and C-down) step
+  as the game has them. With a pad, or the pointer free, the stick is the game's own.
+- In the menus' folders (file, mission and difficulty select) the mouse moves the game's cursor, as the stick does, left
+  click selects and right click goes back, as B does.
+- Left click fires (also F), right click aims, the wheel changes weapon, R reloads, and Left Ctrl or C crouches, a
+  toggle aim mode keeps. Left Shift is R, the game's own aim mode. WASD walks and strafes, the arrows turn and look, Space or Q is A (weapon), E is
+  B (use), X is L, Return or Tab is Start (the watch). Motion and keys while the watch is up do nothing.
+- Settings > General > Mouse Sensitivity sets how far a count goes; 0 turns mouse look off and frees the pointer.
+  Above 0 RecompFrontend asks for the browser's pointer lock once the game starts, which a browser grants only at a
+  click or a key.
+- Played in Dam in Chrome (headless and off the desktop) and Firefox, with synthetic mouse events and Bond's angles,
+  crouch, aim mode, weapon, field of view and watch read from RDRAM: in both the mouse turns him the way the stick does,
+  up looks up, in aim mode too (200 counts turn him 11 degrees aiming or not, about half that through a weapon zoomed
+  to half), the crosshair stays in the middle, and the watch takes no motion; in Chrome the crouch lasts through aim
+  mode and fire, reload and the wheel work, and with every gun aim mode zooms the KF7 to a 30 degree view, the AR33 to
+  20 and the sniper rifle to 15, which C-up (the Up arrow) takes to 7. Neither browser gave those runs the pointer
+  lock, so how it feels, and the lock itself, are left to a play by hand. In file select, in both, the cursor follows
+  the mouse (0.25 menu units a count at 50%) and a left click opens the folder, and on the difficulty screen a right
+  click goes back to mission select; with Invert Mouse Y on, mouse up looks down in Dam while the menu cursor still
+  follows the mouse as it moves.
+- Right click without the game's aim mode, played in Dam in Chrome and Firefox the same way, Bond's position, aim mode,
+  crosshair, field of view and weapon read from RDRAM: with it held he stays out of aim mode with the crosshair shown,
+  and W, D and S move him as far as without it (W for 1.5 s about 670 units either way, where the earlier aim mode
+  moved him none); with the sniper rifle (All Guns on) it zooms to 15 degrees, three notches of the wheel up take that
+  to 7.7 and one down to 9.6, he walks while zoomed, and letting go puts back 60 and hides the crosshair.
+- Auto-aim with the mouse, played in Dam in Chrome and Firefox with right click held while Bond walks, strafes and turns
+  past the guards, the player's auto-aim targets read from RDRAM 20 times a second: before, auto-aim had a target in 68
+  of 970 samples in Chrome; now in none of 981 in Chrome and 918 in Firefox, with the option still saved on.
+- The tank, played on Runway in Chrome and Firefox, Bond put onto the tank and in with E, the tank's and its turret's
+  angles read from RDRAM: before, D held for 2 s left the tank where it was and swung its turret 123 degrees, the right
+  arrow turned it, and the mouse turned nothing; now D turns the tank as far as the right arrow does (about 115 degrees
+  in 2 s), A turns it back and the turret stays put, and 400 counts of the mouse to the right swing the turret 22
+  degrees and 200 up tilt the view 11, in both browsers. Neither gave those runs the pointer lock either: a stand-in for
+  it took the mouse's motion as a locked pointer's.
+- The watch's inventory page, played in Dam in Chrome and Firefox with All Guns on (33 items), the page's item read from
+  RDRAM while S, W and the Down arrow were held: before, S went through all 33 items in half a second, one each tick;
+  now it steps one at once, the next 0.4 s later and then one every 133 ms, in both browsers, and the Down arrow steps
+  as before (one at once, then about six a second). A stand-in took the place of the pointer lock here too.
