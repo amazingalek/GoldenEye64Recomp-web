@@ -1,6 +1,162 @@
-
 /*
-  In order for rml to parse the base style sheet and combine with this one, any style needs to at least be present.
-  If you add styles to this file later, you can clear the current contents of this file.
+  The launcher's look. RecompFrontend merges this file into its own base styles for every UI document; the launcher
+  (src/main/launcher.cpp) builds the same elements with these classes, inside RecompFrontend's launcher, whose
+  background (Background1) and version label show through. The colours are the theme's, which launcher.cpp sets to
+  this game's palette.
 */
-.rml-needs-something-in-this-file {}
+
+@keyframes slide-mm-bg-over {
+    0% {
+        transform: translateX(100dp);
+    }
+
+    100% {
+        transform: translateX(0dp);
+    }
+}
+
+@keyframes fade-mm-in {
+    0% {
+        opacity: 0;
+    }
+
+    100% {
+        opacity: 0.25;
+    }
+}
+
+.launcher {
+    display: block;
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.launcher__vertical-split {
+    display: flex;
+    position: absolute;
+    top: 0;
+    right: 50%;
+    bottom: 0;
+    left: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: space-between;
+}
+
+.launcher__vertical-split--right {
+    right: 0;
+    left: 50%;
+    align-items: flex-end;
+}
+
+.launcher__background-wrapper {
+    display: flex;
+    position: absolute;
+    top: -55vw;
+    right: -100%;
+    bottom: -50vw;
+    left: -70vw;
+    align-items: center;
+    justify-content: flex-start;
+    transform: translateX(0dp);
+    animation: 25s cubic-out 1 slide-mm-bg-over;
+}
+
+.launcher__background-mm {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    height: 100%;
+    animation: 2.5s cubic-in-out 1 fade-mm-in;
+    opacity: 0.25;
+}
+
+.launcher__title-quadrant {
+    flex: 1 1 auto;
+    width: auto;
+    height: auto;
+    padding-top: 96dp;
+    padding-left: 96dp;
+}
+
+.launcher__title-quadrant--right {
+    padding-right: 96dp;
+    padding-left: 0;
+}
+
+.launcher__content-quadrant {
+    display: flex;
+    position: relative;
+    flex: 1 1 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-end;
+    width: 100%;
+    height: auto;
+    padding: 32dp;
+}
+
+.launcher__title {
+    font-size: 36dp;
+    letter-spacing: 2.52dp;
+    line-height: 36dp;
+    font-style: normal;
+    font-weight: 700;
+    margin-bottom: 6dp;
+}
+
+.subtitle-title {
+    display: block;
+    position: relative;
+    flex-direction: column;
+    align-content: flex-start;
+    align-items: flex-start;
+    width: auto;
+    height: auto;
+    padding: 0;
+    background-color: rgba(0, 0, 0, 0);
+    color: TextDim;
+    text-align: left;
+    cursor: pointer;
+}
+
+.subtitle-title:focus,
+.subtitle-title:hover {
+    color: Primary;
+}
+
+.menu-list-item {
+    display: flex;
+    flex-direction: row-reverse;
+    align-content: flex-end;
+    align-items: center;
+    width: 100%;
+    height: auto;
+    padding: 16dp;
+    border-radius: 8dp;
+    background-color: rgba(0, 0, 0, 0);
+    color: TextDim;
+    cursor: pointer;
+}
+
+.menu-list-item:focus,
+.menu-list-item:hover {
+    color: Primary;
+    decorator: horizontal-gradient(#7A2AC600 #DABAF714);
+}
+
+.menu-list-item__label {
+    font-size: 36dp;
+    letter-spacing: 3.96dp;
+    line-height: 36dp;
+    font-style: normal;
+    font-weight: 700;
+}
+
+.menu-list-item__bullet {
+    margin-right: 12dp;
+    margin-left: 12dp;
+}

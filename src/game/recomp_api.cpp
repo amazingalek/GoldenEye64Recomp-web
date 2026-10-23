@@ -1,12 +1,16 @@
 #include <cmath>
-#include <cstdlib>
 
 #include "recomp.h"
 #include "librecomp/overlays.hpp"
+#include "zelda_config.h"
 #include "recompinput/recompinput.h"
 #include "recompui/recompui.h"
 #include "recompui/renderer.h"
+#include "zelda_sound.h"
 #include "librecomp/helpers.hpp"
+// #include "../patches/input.h"
+// #include "../patches/graphics.h"
+// #include "../patches/sound.h"
 #include "ultramodern/ultramodern.hpp"
 #include "ultramodern/config.hpp"
 #include "librecomp/game.hpp"
@@ -95,7 +99,7 @@ extern "C" void recomp_get_mouse_deltas(uint8_t* rdram, recomp_context* ctx) {
     float* x_out = _arg<0, float*>(rdram, ctx);
     float* y_out = _arg<1, float*>(rdram, ctx);
 
-    recompinput::get_mouse_deltas(x_out, y_out);
+    zelda64::get_mouse_deltas(x_out, y_out);
 }
 
 extern "C" void recomp_powf(uint8_t* rdram, recomp_context* ctx) {
@@ -128,20 +132,23 @@ extern "C" void recomp_get_aspect_ratio(uint8_t* rdram, recomp_context* ctx) {
     }
 }
 
+// The natives below, from Zelda 64: Recompiled's patches, have no menu option here, and give what they always have.
+
 extern "C" void recomp_get_targeting_mode(uint8_t* rdram, recomp_context* ctx) {
+    // Switch.
     _return(ctx, 0);
 }
 
 extern "C" void recomp_get_bgm_volume(uint8_t* rdram, recomp_context* ctx) {
-    _return(ctx, 1.0f);
+    _return(ctx, zelda64::get_bgm_volume() / 100.0f);
 }
 
 extern "C" void recomp_get_sfx_volume(uint8_t* rdram, recomp_context* ctx) {
-    _return(ctx, 1.0f);
+    _return(ctx, zelda64::get_sfx_volume() / 100.0f);
 }
 
 extern "C" void recomp_get_voice_volume(uint8_t* rdram, recomp_context* ctx) {
-    _return(ctx, 1.0f);
+    _return(ctx, zelda64::get_voice_volume() / 100.0f);
 }
 
 extern "C" void recomp_get_low_health_beeps_enabled(uint8_t* rdram, recomp_context* ctx) {
@@ -154,7 +161,7 @@ extern "C" void recomp_time_us(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void recomp_autosave_enabled(uint8_t* rdram, recomp_context* ctx) {
-    _return(ctx, 0);
+    _return(ctx, 1);
 }
 
 extern "C" void recomp_load_overlays(uint8_t* rdram, recomp_context* ctx) {
@@ -177,8 +184,9 @@ extern "C" void recomp_get_inverted_axes(uint8_t* rdram, recomp_context* ctx) {
     s32* x_out = _arg<0, s32*>(rdram, ctx);
     s32* y_out = _arg<1, s32*>(rdram, ctx);
 
+    // Y inverted.
     *x_out = 0;
-    *y_out = 0;
+    *y_out = 1;
 }
 
 extern "C" void recomp_get_analog_inverted_axes(uint8_t* rdram, recomp_context* ctx) {
@@ -222,42 +230,4 @@ extern "C" void recomp_set_right_analog_suppressed(uint8_t* rdram, recomp_contex
     s32 suppressed = _arg<0, s32>(rdram, ctx);
 
     recompinput::set_right_analog_suppressed(suppressed);
-}
-
-// The patches' test harness (tools/harness.sh in podulator/GoldenEye64Recomp) and debug menu switch, read from the environment
-// as its src/game/debug.cpp reads them. A page has none of these set: the normal game, no debug menu.
-static int32_t env_int(const char* name, int32_t fallback) {
-    const char* value = getenv(name);
-    return value != nullptr ? (int32_t) strtol(value, nullptr, 0) : fallback;
-}
-
-// GE_HARNESS_STAGE=<level id> boots straight into that level.
-extern "C" void recomp_get_harness_stage(uint8_t* rdram, recomp_context* ctx) {
-    _return(ctx, env_int("GE_HARNESS_STAGE", -1));
-}
-
-// GE_HARNESS_LOOK=<degrees> holds the vertical look angle there.
-extern "C" void recomp_get_harness_look(uint8_t* rdram, recomp_context* ctx) {
-    _return(ctx, env_int("GE_HARNESS_LOOK", -1000));
-}
-
-// GE_HARNESS_SKIP=0 lets the level's intro play out.
-extern "C" void recomp_get_harness_skip(uint8_t* rdram, recomp_context* ctx) {
-    _return(ctx, env_int("GE_HARNESS_SKIP", 1));
-}
-
-// GE_HARNESS_DBG: a free integer for a patch's temporary A/B switch.
-extern "C" void recomp_get_harness_dbg(uint8_t* rdram, recomp_context* ctx) {
-    _return(ctx, env_int("GE_HARNESS_DBG", 0));
-}
-
-// The game's developer debug menu (C-Up and C-Down held together) opens only with GE_DEBUG_MENU=1.
-extern "C" void recomp_get_debug_menu_enabled(uint8_t* rdram, recomp_context* ctx) {
-    static const bool enabled = env_int("GE_DEBUG_MENU", 0) == 1;
-    _return(ctx, (int32_t) enabled);
-}
-
-// podulator's --debug-log turns on per-frame traces this fork's patches don't print, so it is always off.
-extern "C" void recomp_get_debug_log_enabled(uint8_t* rdram, recomp_context* ctx) {
-    _return(ctx, 0);
 }

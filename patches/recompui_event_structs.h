@@ -1,7 +1,7 @@
 #ifndef __UI_FUNCS_H__
 #define __UI_FUNCS_H__
 
-// These three enums must be kept in sync with src/ui/elements/ui_types.h!
+// These three enums must be kept in sync with lib/RecompFrontend/recompui/src/elements/ui_types.h!
 typedef enum {
     UI_EVENT_NONE,
     UI_EVENT_CLICK,

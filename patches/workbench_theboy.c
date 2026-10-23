@@ -583,6 +583,7 @@ RECOMP_PATCH void bossMainloop(void) {
 
             switch (localGfxFrameMsg->gen.type) {
                 case (OS_SC_RETRACE_MSG): {
+                    { static int rc=0; if ((rc++ % 120)==0 && recomp_get_debug_log_enabled()) recomp_printf("[trace] retrace#%d stage=%d pending=%d demo=%d sgf=%d\n", rc, g_MainStageNum, pendingGfx, demoMode, speedgraphframes); }
 #ifdef DEBUG
                     /* debug logging from simple.c, I think this requires #include <ultralog.h>
                      * //    if (logging)
@@ -594,6 +595,7 @@ RECOMP_PATCH void bossMainloop(void) {
                     if ((demoMode == 1 && mainTickElapsed < (MAIN_LOOP_TICK_INTERVAL * (speedgraphframes * 2))) ||
                     (demoMode != 1 && mainTickElapsed < MAIN_LOOP_TICK_INTERVAL)) 
                     {
+                        { static int sk=0; if ((sk++ % 120)==0 && recomp_get_debug_log_enabled()) recomp_printf("[trace] skip#%d elapsed=%d interval=%d\n", sk, mainTickElapsed, MAIN_LOOP_TICK_INTERVAL); }
                         break; // Skip frame
                     } else {
                         if (g_MainStageNum < 0 && pendingGfx < 2U) {
@@ -609,6 +611,9 @@ RECOMP_PATCH void bossMainloop(void) {
                             joyConsumeSamplesWrapper();
                             permit_stderr(0);
                             
+                            if (recomp_get_debug_log_enabled()) {
+                                recomp_printf("[trace] render start\n");
+                            }
                             gdl = firstGdl = dynGetMasterDisplayList();
 
                             gEXEnable(gdl++); // @theboy181 - better place for this 
@@ -732,6 +737,9 @@ RECOMP_PATCH void bossMainloop(void) {
                             }
 
                             rspReplyMsg = (s32) (&localGfxDoneMsg);
+                            if (recomp_get_debug_log_enabled()) {
+                                recomp_printf("[trace] submitting gfx task %p..%p\n", firstGdl, gdl);
+                            }
                             rspGfxTaskStart(firstGdl, gdl, 0, (s32*) rspReplyMsg);
 
                             pendingGfx++;
@@ -1489,6 +1497,16 @@ RECOMP_PATCH void __scMain(void *arg) {
 
     while (!done) {
         osRecvMesg((OSMesgQueue *) (sc + 0x40), &msg, OS_MESG_BLOCK);
+        {
+            static int n = 0;
+            u32 rsp = *(u32 *) (sc + 0xC8);
+            u32 rdp = *(u32 *) (sc + 0xCC);
+            u32 gfxhead = *(u32 *) (sc + 0xBC);
+            n++;
+            if (((s32) msg != 666 || (n % 240) == 0) && recomp_get_debug_log_enabled()) {
+                recomp_printf("[sc] msg=%d rsp=%08X rdp=%08X gfxq=%08X\n", (s32) msg, rsp, rdp, gfxhead);
+            }
+        }
         switch ((s32) msg) {
             case 666: __scHandleRetrace(arg); break;
             case 667: __scHandleRSP(arg); break;

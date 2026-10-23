@@ -1,9 +1,7 @@
-// The ROM the game runs from is the TLBFREE ROM, built from the decompilation without the TLB (N64Recomp has none)
-// and with its code uncompressed: everything in RecompiledFuncs/ is recompiled from it. The player picks a plain
-// retail NTSC-U dump, which is what the launcher stores (its hash is the game entry's), and when the game starts its
-// on_init_callback turns the dump into the TLBFREE ROM with an embedded GEP1 delta patch, sets it as the ROM and
-// reads the first megabyte in again, which the runtime has just read from the dump. The patch holds no Nintendo
-// data that it doesn't also need the dump for: it rearranges the player's own ROM.
+// In-app ROM conversion: the ROM picker takes a retail GoldenEye 007 NTSC-U dump, which is what the launcher stores
+// (its hash is the game entry's), and when the game starts this, the entry's on_init_callback, converts it into the
+// TLBFREE ROM this recompilation needs, using an embedded GEP1 delta patch (no Nintendo assets are shipped; the patch
+// only rearranges/augments the user's own dump), and reads the boot segment in again from it.
 //
 // GEP1 format (little-endian):
 //   magic   4 bytes  "GEP1"
@@ -22,7 +20,7 @@
 
 #include "librecomp/game.hpp"
 #include "ultramodern/ultramodern.hpp"
-#include "goldeneye.h"
+#include "zelda_config.h"
 #include "xxHash/xxh3.h"
 
 #include "ge_rom_patch.h"
@@ -30,6 +28,8 @@
 // XXH3-64 of the retail NTSC-U ROM (big-endian .z64 byte order).
 // librecomp has already normalized byteswapped (.v64/.n64) dumps before we're called.
 static constexpr uint64_t GE_RETAIL_US_HASH = 0x639ece0bc88c6e4aULL;
+
+gpr get_entrypoint_address();
 
 static uint32_t read_u32le(const uint8_t* p) {
     return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
@@ -79,19 +79,21 @@ static bool apply_gep1(const uint8_t* patch, size_t patch_size, const std::vecto
     return out.size() == tgt_size;
 }
 
-void goldeneye::convert_rom(uint8_t* rdram, recomp_context* ctx) {
+void zelda64::convert_rom(uint8_t* rdram, recomp_context* ctx) {
     std::span<const uint8_t> rom = recomp::get_rom();
     if (XXH3_64bits(rom.data(), rom.size()) != GE_RETAIL_US_HASH) {
-        // Already converted (a ROM someone stored by hand).
+        // Already the TLBFREE ROM (one stored by hand).
         return;
     }
+
+    printf("Retail NTSC-U GoldenEye ROM detected; converting to the TLBFREE ROM...\n");
     std::vector<uint8_t> retail{ rom.begin(), rom.end() };
     std::vector<uint8_t> converted;
     if (!apply_gep1(reinterpret_cast<const uint8_t*>(ge_rom_patch), sizeof(ge_rom_patch), retail, converted)) {
-        ultramodern::error_handling::message_box("The ROM couldn't be converted for this recompilation.");
+        ultramodern::error_handling::message_box("Embedded ROM patch failed to apply.");
         return;
     }
     recomp::set_rom_contents(std::move(converted));
-    // As librecomp's init does, from the ROM the game will now read: the boot segment at the entrypoint.
-    recomp::do_rom_read(rdram, (gpr)(int32_t)0x80000400, 0x10001000, 0x100000);
+    // As librecomp's own start does, from the ROM the game now reads: the boot segment at the entrypoint.
+    recomp::do_rom_read(rdram, get_entrypoint_address(), 0x10001000, 0x100000);
 }

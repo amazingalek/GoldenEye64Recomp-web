@@ -2,14 +2,13 @@
 
 > [!WARNING]
 > **This is n64hub/GoldenEye64Recomp-web, a fork, not GoldenEye64Recomp or GoldenRecomp.** Its `main` branch is
-> cblock85's [GoldenEye64Recomp](https://github.com/cblock85/GoldenEye64Recomp), as podulator's
-> [fork of it](https://github.com/podulator/GoldenEye64Recomp) carries it on, moved onto
-> [RecompFrontend](https://github.com/N64Recomp/RecompFrontend) and built into a web page (WebGPU, through
-> [N64Recomp-browser](https://github.com/n64hub/N64Recomp-browser)), and everything on it past cblock85's and
-> podulator's commits was written by AI (Claude). It is not made, endorsed or supported by GoldenEye64Recomp's or
+> podulator's [GoldenEye64Recomp](https://github.com/podulator/GoldenEye64Recomp), which carries on cblock85's
+> [GoldenEye64Recomp](https://github.com/cblock85/GoldenEye64Recomp), with web support added: built into a web page
+> (WebGPU, through [N64Recomp-browser](https://github.com/n64hub/N64Recomp-browser)). Everything this fork adds to
+> podulator's main was written by AI (Claude). It is not made, endorsed or supported by GoldenEye64Recomp's or
 > GoldenRecomp's authors, and please don't take issues with this fork to them. Only fixes for bugs the desktop build
-> has too, the keyboard and mouse and a Windows build are offered upstream, to podulator's, each a pull request of its
-> own on its code, without the web code, saying it is AI-written.
+> has too, the keyboard and mouse, a Windows build and the move onto RecompFrontend are offered upstream, to
+> podulator's, each a pull request of its own on its code, without the web code, saying it is AI-written.
 > Building it: [BUILDING.md](BUILDING.md).
 >
 > This port is here to build out and test N64Recomp-browser's web support on another game than the one it was written
@@ -23,10 +22,45 @@ GoldenEye 007 (N64, NTSC-U) statically recompiled with [N64Recomp](https://githu
 run by [N64ModernRuntime](https://github.com/N64Recomp/N64ModernRuntime) and drawn by [RT64](https://github.com/rt64/rt64),
 from the [GoldenEye decompilation](https://gitlab.com/kholdfuzion/goldeneye_src). It descends from kholdfuzion's
 [GoldenRecomp](https://github.com/kholdfuzion/goldenrecomp) (Windows) through cblock85's GoldenEye64Recomp (macOS
-and Linux) and podulator's fork of it, which this one merges (its sky and water drawn as RT64 can, the debug menu
-only with `GE_DEBUG_MENU=1`). This fork builds as a native program (checked on Windows) and as a page that runs in a
-browser with WebGPU, both with RecompFrontend's launcher and menus, on upstream RT64, N64ModernRuntime and RecompFrontend at the
-commits N64Recomp-browser's web forks are built on, with its `patches/` applied (BUILDING.md).
+and Linux) and podulator's fork of it, whose main this one merges: its launcher and menus on RecompFrontend, its
+settings, keyboard and mouse, quicksaves and debug menu, its build scripts for Windows, Linux, macOS and the Steam
+Deck and its release workflow are this fork's too. This fork adds the page, which runs in a browser with WebGPU, and
+builds natively as podulator's does (checked on Windows), on upstream RT64, N64ModernRuntime and RecompFrontend at the
+commits N64Recomp-browser's web forks are built on (What differs from podulator's main).
+
+## What differs from podulator's main
+
+The fork's diff from podulator's main is the web support and what it needs:
+
+- `lib/`: podulator's copies of RT64, N64ModernRuntime, RecompFrontend and N64Recomp (`n64recomp-src`) are
+  submodules here, at the upstream commits N64Recomp-browser's forks are built on, beside N64Recomp-browser itself.
+  What podulator's copies change in them is in `lib-patches/` (its `apply.cmake` says what each patch holds), applied
+  with N64Recomp-browser's `patches/` on top by `cmake -P lib-patches/apply.cmake lib`: CMakeLists.txt runs it when it
+  configures, and the build scripts before they build N64Recomp from `lib/N64ModernRuntime/N64Recomp`. Not carried:
+  RT64's ubershaders-only on the page, which builds the game's shaders before it draws with them
+  (`src/rt64_shaders.txt`), and N64ModernRuntime's `--game` and `--game-mode`, newer than the runtime the forks are
+  on. On Linux, CMakeLists.txt runs RT64's DXC as upstream names it, `dxc-linux`.
+- The page's build: CMakeLists.txt's `EMSCRIPTEN` parts, the prebuilt shader list and how it is recorded
+  (`src/rt64_shaders.txt`, `tools/record_shaders.sh`, `tools/shader_survey.js`, `patches/shader_survey.c`), and the
+  plans that play the page (`tools/play_plan.json`, `tools/play_plan_extended.json`, `tools/shader_plan.json`).
+- The page's code, behind `__EMSCRIPTEN__`: no native file dialogs and no Exit in the launcher, the canvas as the
+  window, sound through N64Recomp-browser's AudioWorklet output, render to RAM's late copy, the page's own game id
+  (`ge007.n64.us`, under which a browser keeps the player's ROM and saves), and a Mouse Sensitivity of 0% saved by an
+  earlier page loading as 50% (`src/game/config.cpp`).
+- Fixes the page needed, which the native build takes too:
+  - The patches yield through `recomp_yield_self_1ms`, a native whose signature matches the call (WebAssembly traps on
+    one that doesn't), and the main loop's waits for its next tick yield as they poll (`patches/fps.c`; Status says
+    why).
+  - `get_frames_remaining` leaves out the buffer queued last (`src/main/main.cpp`; Status says why).
+  - `dump.toml` gives `cosf` the size that takes in `sinf`, which it falls through into, so N64Recomp writes the whole
+    function: the page's build doesn't run `tools_weaken_patched.py`, which repairs it after.
+  - `patches.toml` and `us.toml` rename the game's `strtol` and the other functions with C library names, which
+    clashed with the library's declarations, and the patches call the game's `strtol` rather than a copy of their own
+    (N64Recomp's strict patch mode refuses a copy).
+  - `patches/syms.ld` comments out with `/* */`: ld.lld took a `//` as part of the next symbol's name.
+  - The launcher remembers a ROM picked in it (`src/main/launcher.cpp`): the runtime's `is_rom_valid` knows only the
+    ROM stored when the program started, so Start game stayed Select ROM, and opened the file dialog again, until the
+    program restarted.
 
 ## No Nintendo assets
 
@@ -106,19 +140,13 @@ ROM you load, so the launcher takes the retail dump as it is.
   Start).
 - Mods a player adds are off on the web (there is no recompiler that emits WebAssembly at run time); natively they
   are supported but untested.
-- cblock85's run-time recompilation of the game from the ROM (`LiveGamecode`) is gone: RecompFrontend's launcher
-  loads the ROM at run time instead, and the game's code is recompiled at build time.
-- podulator's macOS, Linux and Steam Deck build scripts, CI and native screenshot harness (`tools/harness.sh`) are
-  gone with the build they drive: this fork builds with CMake alone (BUILDING.md). The patches' harness hooks stay,
-  read from the same `GE_HARNESS_*` variables (`src/game/recomp_api.cpp`), and its `--debug-log` has nothing to turn
-  on here, where the patches print no per-frame traces.
 
 ## Keyboard and mouse
 
 The page and the desktop build play the game with keyboard and mouse as the PC ports do (the design of
 [goldeneye-pc-port](https://github.com/jkdansereau/goldeneye-pc-port)'s `port/src/input.c`, and the feel of the
-[Perfect Dark port](https://github.com/fgsfdsfgs/perfect_dark)), all of it in this fork's own code: `patches/mouse.c` is
-the game's side and `src/game/mouse_keyboard.cpp` the program's.
+[Perfect Dark port](https://github.com/fgsfdsfgs/perfect_dark)), as podulator's main does: `patches/mouse.c` is the
+game's side, and `src/game/input.cpp` and `src/game/mouse.cpp` the program's.
 
 - The mouse turns Bond and tilts his view, 0.055 degrees a count at the default 50% as Perfect Dark's port does, less
   as the view zooms, aiming or not. Right click aims and does nothing else: it shows the crosshair, which stays in the
@@ -144,8 +172,8 @@ the game's side and `src/game/mouse_keyboard.cpp` the program's.
   toggle aim mode keeps. Left Shift is R, the game's own aim mode. WASD walks and strafes, the arrows turn and look, Space or Q is A (weapon), E is
   B (use), X is L, Return or Tab is Start (the watch). Motion and keys while the watch is up do nothing.
 - Settings > General > Mouse Sensitivity sets how far a count goes, 50% by default; 0 turns mouse look off and frees
-  the pointer. A config saved before mouse look came holds the frontend's default then, 0, and loads as 50%
-  (src/game/mouse_keyboard.cpp).
+  the pointer. On the page, a config saved before mouse look came holds the frontend's default then, 0, and loads as
+  50% (src/game/config.cpp).
   Above 0 RecompFrontend asks for the browser's pointer lock once the game starts, which a browser grants only at a
   click or a key.
 - Played in Dam in Chrome (headless and off the desktop) and Firefox, with synthetic mouse events and Bond's angles,

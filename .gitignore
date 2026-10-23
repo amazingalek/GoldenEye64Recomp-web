@@ -16,6 +16,11 @@ RecompiledPatches/
 /build/
 /build-clean/
 /build-cmake/
+# Steam Deck (sniper runtime) build output, see build_steamdeck.sh
+/build-sniper/
+/build-sniper-clean/
+/build-sniper-tools/
+/build-sniper-clean-tools/
 *.o
 
 # Windows build output
@@ -80,7 +85,7 @@ gamecontrollerdb.txt
 *.n64
 rsp/aspMain.cpp
 rsp/njpgdspMain.cpp
-n64recomp-src/build/
+/build-n64recomp*/
 /N64Recomp
 /RSPRecomp
 gamecontrollerdb.txt
@@ -105,5 +110,3 @@ mod_config/
 /N64Recomp.exe
 /RSPRecomp.exe
 /OfflineModRecomp.exe
-/build*/
-RecompiledPatches/

@@ -1,0 +1,80 @@
+diff --git a/librecomp/include/librecomp/game.hpp b/librecomp/include/librecomp/game.hpp
+index 8b1b9bc..8d7535d 100644
+--- a/librecomp/include/librecomp/game.hpp
++++ b/librecomp/include/librecomp/game.hpp
+@@ -87,9 +87,9 @@ namespace recomp {
+     std::filesystem::path get_config_path();
+     bool register_game(const recomp::GameEntry& entry);
+     void check_all_stored_roms();
+-    bool load_stored_rom(std::u8string& game_id);
+-    RomValidationError select_rom(const std::filesystem::path& rom_path, std::u8string& game_id);
+-    bool is_rom_valid(std::u8string& game_id);
++    bool load_stored_rom(const std::u8string& game_id);
++    RomValidationError select_rom(const std::filesystem::path& rom_path, const std::u8string& game_id);
++    bool is_rom_valid(const std::u8string& game_id);
+     bool is_rom_loaded();
+     void set_rom_contents(std::vector<uint8_t>&& new_rom);
+     std::span<const uint8_t> get_rom();
+diff --git a/librecomp/src/recomp.cpp b/librecomp/src/recomp.cpp
+index ea1c49b..8cd9e98 100644
+--- a/librecomp/src/recomp.cpp
++++ b/librecomp/src/recomp.cpp
+@@ -208,7 +208,7 @@ bool check_stored_rom(const recomp::GameEntry& game_entry) {
+ 
+ static std::unordered_set<std::u8string> valid_game_roms;
+ 
+-bool recomp::is_rom_valid(std::u8string& game_id) {
++bool recomp::is_rom_valid(const std::u8string& game_id) {
+     return valid_game_roms.contains(game_id);
+ }
+ 
+@@ -220,7 +220,7 @@ void recomp::check_all_stored_roms() {
+     }
+ }
+ 
+-bool recomp::load_stored_rom(std::u8string& game_id) {
++bool recomp::load_stored_rom(const std::u8string& game_id) {
+     auto find_it = game_roms.find(game_id);
+ 
+     if (find_it == game_roms.end()) {
+@@ -357,7 +357,7 @@ void byteswap_data(std::vector<uint8_t>& rom_data, size_t index_xor) {
+     }
+ }
+ 
+-recomp::RomValidationError recomp::select_rom(const std::filesystem::path& rom_path, std::u8string& game_id) {
++recomp::RomValidationError recomp::select_rom(const std::filesystem::path& rom_path, const std::u8string& game_id) {
+     auto find_it = game_roms.find(game_id);
+ 
+     if (find_it == game_roms.end()) {
+diff --git a/ultramodern/include/ultramodern/ultramodern.hpp b/ultramodern/include/ultramodern/ultramodern.hpp
+index 46aea61..1f349f1 100644
+--- a/ultramodern/include/ultramodern/ultramodern.hpp
++++ b/ultramodern/include/ultramodern/ultramodern.hpp
+@@ -174,7 +174,12 @@ void set_callbacks(
+ 
+ #define MIN(a, b) ((a) < (b) ? (a) : (b))
+ 
+-#define debug_printf(...)
+-//#define debug_printf(...) printf(__VA_ARGS__);
++namespace ultramodern {
++    // Verbose runtime tracing (thread scheduling, message queues, PI DMA). Off by default: it prints
++    // several lines per frame, which costs CPU (and battery on handhelds). Enabled with --debug-log.
++    extern bool debug_logging;
++}
++
++#define debug_printf(...) do { if (ultramodern::debug_logging) { printf(__VA_ARGS__); } } while (0)
+ 
+ #endif
+diff --git a/ultramodern/src/events.cpp b/ultramodern/src/events.cpp
+index 2f1cfb5..eea8645 100644
+--- a/ultramodern/src/events.cpp
++++ b/ultramodern/src/events.cpp
+@@ -20,6 +20,8 @@
+ 
+ static ultramodern::events::callbacks_t events_callbacks{};
+ 
++bool ultramodern::debug_logging = false;
++
+ void ultramodern::events::set_callbacks(const ultramodern::events::callbacks_t& callbacks) {
+     events_callbacks = callbacks;
+ }

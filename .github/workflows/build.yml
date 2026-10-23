@@ -1,0 +1,328 @@
+# Builds the clean (no game code) variant for macOS on Apple Silicon, Linux x86_64 / Steam Deck and Windows x64.
+#
+# Run it from the Actions tab to get the three packages as run artifacts. To release, run it on main with a
+# version (1.2.0): it builds, tags that commit v1.2.0 and puts all three packages on a draft release, to be checked
+# and published by hand. The version has to match version_string in src/main/main.cpp. Releasing from main
+# rather than by pushing a tag matters for speed: a tag run can only reuse compiler caches saved on main or on
+# that same tag, so a pushed tag always builds from cold. Pushing a v* tag by hand still works.
+#
+# A clean build ships no game code, but it still translates the game's audio microcode (aspMain) at build
+# time, and that is the only part of the ROM it reads: 0xDC0 bytes at offset 0x22C80 of the TLBFREE ROM.
+# So instead of a ROM, the runner gets just that slice, from the ASP_MICROCODE_B64 secret, and lays it at
+# the same offset in an otherwise zero-filled ge007.tlbfree.z64. RSPRecomp's output from that is identical
+# to its output from the full ROM. Making the secret, once, from a TLBFREE ROM:
+#   dd if=ge007.tlbfree.z64 bs=1 skip=$((0x22C80)) count=$((0xDC0)) status=none | base64 -w0 \
+#     | gh secret set ASP_MICROCODE_B64 --repo podulator/GoldenEye64Recomp
+#
+# There is no pull request trigger, so the secret is never exposed to code from forks.
+name: build
+
+on:
+  push:
+    tags: ['v*', 'V*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'To release: the version, e.g. 1.2.0 (tags this commit and drafts a release). Empty: just build'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ASP_SHA256: ae28967ac5ef8a746f761a24897988006ddde24212a333355dfba97d363ba7e0
+  # ccache, restored and saved by actions/cache. CMake picks the launchers up from the environment.
+  # The compilers are freshly installed on every runner, so they're checked by content, not timestamp.
+  CMAKE_C_COMPILER_LAUNCHER: ccache
+  CMAKE_CXX_COMPILER_LAUNCHER: ccache
+  CCACHE_COMPILERCHECK: content
+  CCACHE_MAXSIZE: 1G
+  # ccache can't cache compiles that use a precompiled header, and RmlUi uses one for every file.
+  EXTRA_CMAKE_ARGS: -DRMLUI_PRECOMPILED_HEADERS=OFF
+
+jobs:
+  # Works out the release tag, if any, and checks it before an hour of runner time is spent on it.
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      label: ${{ steps.tag.outputs.label }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Work out and check the release tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -eu
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            tag=$GITHUB_REF_NAME
+          elif [ -n "${INPUT_VERSION:-}" ]; then
+            [ "$GITHUB_REF_NAME" = main ] || { echo "::error::release from main, not $GITHUB_REF_NAME"; exit 1; }
+            tag=v${INPUT_VERSION#[vV]}
+            if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1; then
+              echo "::error::the tag $tag already exists"
+              exit 1
+            fi
+          else
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            echo "label=dev-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+            echo "No version given: building only."
+            exit 0
+          fi
+          version=$(sed -nE 's/^const std::string version_string = "([^"]*)";/\1/p' src/main/main.cpp)
+          if [ "${tag#[vV]}" != "$version" ]; then
+            echo "::error::$tag doesn't match version_string \"$version\" in src/main/main.cpp: change one of them"
+            exit 1
+          fi
+          echo "Releasing $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "label=$tag" >> "$GITHUB_OUTPUT"
+
+  macos:
+    needs: prepare
+    # Apple Silicon. macOS 15 rather than the newest: the app, and the Homebrew libraries bundled in it,
+    # won't run on a macOS older than the one it was built on.
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Lay out the audio microcode
+        env:
+          ASP_MICROCODE_B64: ${{ secrets.ASP_MICROCODE_B64 }}
+        run: |
+          set -eu
+          [ -n "$ASP_MICROCODE_B64" ] || { echo "::error::the ASP_MICROCODE_B64 secret isn't set, see the top of this file"; exit 1; }
+          printf '%s' "$ASP_MICROCODE_B64" | base64 --decode > "$RUNNER_TEMP/asp.bin"
+          echo "$ASP_SHA256  $RUNNER_TEMP/asp.bin" | shasum -a 256 -c
+          head -c $((0x22C80)) /dev/zero > ge007.tlbfree.z64
+          cat "$RUNNER_TEMP/asp.bin" >> ge007.tlbfree.z64
+          echo "CCACHE_DIR=$HOME/.ccache" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_INSTALL_CLEANUP: '1'
+        run: |
+          brew install cmake ninja sdl2 freetype llvm lld xdelta dylibbundler ccache
+          # Xcode 26 and later download the Metal compiler separately.
+          xcrun -sdk macosx metal --version || xcodebuild -downloadComponent MetalToolchain
+
+      - name: Restore the compiler cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.ccache
+          key: ccache-macos-${{ github.sha }}
+          restore-keys: ccache-macos-
+
+      - name: Build
+        run: |
+          ccache -z
+          ./build_macos.sh --clean
+          ccache -s
+
+      - name: Package
+        run: |
+          set -eu
+          rm -f ge007.tlbfree.z64
+          VERSION=${{ needs.prepare.outputs.label }}
+          mkdir -p package
+          APP_VERSION=$VERSION ./make_macos_app.sh build-clean/GoldenRecomp package
+          # Plain files only (no ._ extended-attribute entries); the signature is in the app itself.
+          ditto -c -k --norsrc --noextattr --noacl --keepParent "package/GoldenEye 007 Recompiled.app" \
+            "package/GoldenEye64Recomp-$VERSION-macOS-arm64.zip"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos-arm64
+          path: package/*.zip
+          if-no-files-found: error
+
+  steamdeck:
+    needs: prepare
+    # Compiled inside Valve's Steam Linux Runtime 3.0 (sniper) SDK, so the binary only needs glibc 2.31:
+    # it runs on the Steam Deck and on most desktop distros. See build_steamdeck.sh.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Lay out the audio microcode
+        env:
+          ASP_MICROCODE_B64: ${{ secrets.ASP_MICROCODE_B64 }}
+        run: |
+          set -eu
+          [ -n "$ASP_MICROCODE_B64" ] || { echo "::error::the ASP_MICROCODE_B64 secret isn't set, see the top of this file"; exit 1; }
+          printf '%s' "$ASP_MICROCODE_B64" | base64 --decode > "$RUNNER_TEMP/asp.bin"
+          echo "$ASP_SHA256  $RUNNER_TEMP/asp.bin" | sha256sum -c
+          head -c $((0x22C80)) /dev/zero > ge007.tlbfree.z64
+          cat "$RUNNER_TEMP/asp.bin" >> ge007.tlbfree.z64
+          echo "CCACHE_DIR=$HOME/.ccache" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build clang lld python3 pkg-config ccache \
+            libsdl2-dev libfreetype-dev libgtk-3-dev libx11-dev libxrandr-dev podman
+          podman pull -q registry.gitlab.steamos.cloud/steamrt/sniper/sdk:latest
+
+      # Two caches: the host build's, and the sniper container's next to it (build_steamdeck.sh).
+      - name: Restore the compiler cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.ccache
+            ~/.ccache-sniper
+          key: ccache-steamdeck-${{ github.sha }}
+          restore-keys: ccache-steamdeck-
+
+      - name: Build
+        run: |
+          ccache -z
+          ./build_steamdeck.sh --clean
+          echo "== host build"; ccache -s
+          echo "== sniper build"; CCACHE_DIR=~/.ccache-sniper ccache -s || true
+
+      - name: Check the glibc requirement
+        run: |
+          need=$(objdump -T build-sniper-clean/GoldenRecomp | grep -o 'GLIBC_[0-9.]*' | sort -Vu | tail -1 | sed 's/GLIBC_//')
+          echo "needs glibc $need"
+          if [ "$(printf '%s\n2.31\n' "$need" | sort -V | tail -1)" != 2.31 ]; then
+            echo "::error::the binary needs glibc $need, newer than the 2.31 in the sniper runtime"
+            exit 1
+          fi
+
+      - name: Package
+        run: |
+          set -eu
+          rm -f ge007.tlbfree.z64
+          VERSION=${{ needs.prepare.outputs.label }}
+          tools/package_linux.sh build-sniper-clean/GoldenRecomp package
+          # A tarball, so the executable bits survive the artifact upload.
+          tar -czf "package/GoldenEye64Recomp-$VERSION-Linux-x86_64-SteamDeck.tar.gz" -C package GoldenEye64Recomp
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-x86_64-steamdeck
+          path: package/*.tar.gz
+          if-no-files-found: error
+
+  windows:
+    needs: prepare
+    # Windows Server 2025 image: Visual Studio 2022 (MSVC libraries, Windows SDK), LLVM (clang-cl, lld-link,
+    # ld.lld) and MSYS2 in C:\msys64, not on PATH. See build_windows.sh.
+    runs-on: windows-2025
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # The build scripts are bash: keep them LF, the runner's git would check them out CRLF.
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Lay out the audio microcode
+        env:
+          ASP_MICROCODE_B64: ${{ secrets.ASP_MICROCODE_B64 }}
+        run: |
+          set -eu
+          [ -n "$ASP_MICROCODE_B64" ] || { echo "::error::the ASP_MICROCODE_B64 secret isn't set, see the top of this file"; exit 1; }
+          printf '%s' "$ASP_MICROCODE_B64" | base64 --decode > "$RUNNER_TEMP/asp.bin"
+          echo "$ASP_SHA256  $RUNNER_TEMP/asp.bin" | sha256sum -c
+          head -c $((0x22C80)) /dev/zero > ge007.tlbfree.z64
+          cat "$RUNNER_TEMP/asp.bin" >> ge007.tlbfree.z64
+          echo "CCACHE_DIR=$(cygpath -w ~/.ccache)" >> "$GITHUB_ENV"
+
+      # The gameplay patches are MIPS code: MSYS2's clang64 clang has the target (LLVM's Windows release doesn't),
+      # and make runs their Makefile.
+      - name: Install dependencies
+        run: |
+          /c/msys64/usr/bin/bash -lc "pacman -S --noconfirm --needed mingw-w64-clang-x86_64-clang make"
+          choco install ccache ninja --no-progress -y
+
+      # Pinned to a commit: the only third-party action here, in a job that holds the microcode secret.
+      - name: Set up the Visual Studio environment
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+        with:
+          arch: x64
+
+      - name: Restore the compiler cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.ccache
+          key: ccache-windows-${{ github.sha }}
+          restore-keys: ccache-windows-
+
+      - name: Build
+        env:
+          MIPS_CC: /c/msys64/clang64/bin/clang.exe
+        run: |
+          # MSYS2's tools go at the end of PATH: only make is wanted from there.
+          export PATH="$PATH:/c/msys64/usr/bin"
+          export CCACHE_LOGFILE="$RUNNER_TEMP/ccache.log"
+          ccache -z
+          ./build_windows.sh --clean
+          ccache -sv
+          echo "== options ccache refused"
+          grep -ao "Compiler option [^ ]* is unsupported" "$CCACHE_LOGFILE" | sort | uniq -c | sort -rn | head -20 || true
+
+      - name: Package
+        run: |
+          set -eu
+          rm -f ge007.tlbfree.z64
+          VERSION=${{ needs.prepare.outputs.label }}
+          tools/package_windows.sh build-clean package
+          echo "== DLLs the exe imports"
+          objdump -p package/GoldenEye64Recomp/GoldenRecomp.exe | sed -n 's/^\tDLL Name: //p' | sort -f
+          (cd package && 7z a -tzip -bso0 "GoldenEye64Recomp-$VERSION-Windows-x64.zip" GoldenEye64Recomp)
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-x64
+          path: package/*.zip
+          if-no-files-found: error
+
+  release:
+    if: needs.prepare.outputs.tag != ''
+    needs: [prepare, macos, steamdeck, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      # A release run from main tags the commit it built. Made with the workflow's own token, the tag doesn't
+      # start another run.
+      - name: Tag the commit
+        if: github.ref_type != 'tag'
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: gh api "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$GITHUB_SHA" >/dev/null
+
+      - name: Draft the release
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --draft --verify-tag \
+            --title "GoldenEye64Recomp $TAG" --generate-notes

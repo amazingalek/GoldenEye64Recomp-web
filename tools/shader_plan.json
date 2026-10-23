@@ -34,8 +34,9 @@
  "setup": [
   [
    "rom",
-   628,
-   364
+   "Enter",
+   "Enter",
+   13
   ],
   [
    "wait",
@@ -44,9 +45,14 @@
  ],
  "start": [
   [
-   "click",
-   628,
-   364
+   "pressUntil",
+   "Enter",
+   "Enter",
+   13,
+   100,
+   1500,
+   "n64r(0x80000300) !== undefined",
+   20000
   ],
   [
    "until",

@@ -1,0 +1,2 @@
+# Applied byte for byte (lib-patches/apply.cmake): a checkout with core.autocrlf must not give them CRLF line endings.
+lib-patches/*.patch -text

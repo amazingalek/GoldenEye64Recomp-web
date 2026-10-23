@@ -1,29 +1,35 @@
 #include "patches.h"
 
-// Keyboard and mouse as the PC ports play it (the README compares them with the Perfect Dark port). The mouse turns Bond
-// and tilts his view by an angle a count, as Perfect Dark's port does (0.055 degrees a count at the default 50%, finer
-// as the view zooms), aiming or not, and leaves the crosshair where the stick puts it, at the centre without one, as
-// Perfect Dark's port's Locked mouse aim and goldeneye-pc-port's Centred aim have it.
+// Keyboard and mouse, the game's side (the program's is src/game/mouse.cpp), played as the PC ports play it: the design
+// of goldeneye-pc-port's input and the feel of the Perfect Dark port. The mouse turns Bond and tilts his view by an
+// angle a count, as Perfect Dark's port does (0.055 degrees a count at the default 50%, finer as the view zooms),
+// aiming or not, and leaves the crosshair where the stick puts it, at the centre without one, as Perfect Dark's port's
+// Locked mouse aim and goldeneye-pc-port's Centred aim have it.
+//
+// "While the mouse plays" below means the pointer is locked to the game (Mouse Sensitivity above zero, no menu of the
+// program's open) and the mouse was used more recently than a controller. With a controller, everything is as the
+// original has it.
 //
 // Right click aims without the game's aim mode (R): it shows the crosshair and zooms the weapons that zoom, the wheel
 // zooms the sniper rifle and the camera further, and nothing else changes. Aim mode would also stop Bond: the stick
 // (W and S) moves its crosshair instead of walking him, C-left and C-right (A and D) lean instead of strafing, and
 // C-up and C-down crouch. So the game reads Bond's controls as outside aim mode, and the two things right click wants
 // are put back where the game decides them each tick: the crosshair after the game hides it, the zoom where it picks
-// the view's. R itself (Left Shift, a pad's R) is still the game's aim mode.
+// the view's. R itself (Left Shift, a controller's R) is still the game's aim mode.
 //
-// The game's auto-aim (the Auto-Aim option) is off while the mouse plays: outside aim mode it moves the crosshair, and
-// where the gun fires, onto a target near the middle of the screen, which takes the aim from the mouse. With a pad, or
-// the pointer free, the saved option is as it was.
+// The game's auto-aim (the Auto-Aim option) and look-ahead (the Look Ahead option) are off while the mouse plays:
+// auto-aim moves the crosshair, and where the gun fires, onto a target near the middle of the screen, and look-ahead
+// centres the view up and down as Bond walks, and each takes the aim from the mouse. The saved options are left as
+// they are.
 //
 // In the tank, outside aim mode and while the mouse plays, the program makes C-left and C-right (A and D) the stick's
 // left and right, as the arrows are, so that WASD drives it: the C-buttons would only swing its turret, a degree a
 // tick. The mouse swings the turret and tilts the view instead, since the tank works out Bond's view from its own
 // angle and its turret's each tick, after his controls.
 //
-// The keys and the wheel's actions beyond the N64's buttons (reload, crouch, next and previous weapon) come from the
-// program (src/game/mouse_keyboard.cpp), which also puts left click on the pad (fire) and says whether right click is
-// held. Invert Mouse Y flips the mouse's up and down for looking and aiming.
+// The actions beyond the N64's buttons (reload, crouch, next and previous weapon) come from the program, which reads
+// them from the Reload and Crouch inputs and the wheel, and which also puts left click on the pad (fire) and says
+// whether right click is held. Invert Mouse Y flips the mouse's up and down for looking and aiming.
 //
 // On the watch's inventory page, while the mouse plays, the stick (W and S) steps through the items an item a push, and
 // held, repeats at a pace that can be read, rather than an item a tick, as the original moves it pushed all the way.
@@ -37,7 +43,7 @@
 
 // The current player's fields this writes, at the offsets the recompiled code reads them at (structs.h's comments
 // don't all match its layout).
-#define PLAYER_FIELD(type, offset) (*(type*)((u8*)g_CurrentPlayer + (offset)))
+#define PLAYER_FIELD(type, offset) (*(type*) ((u8*) g_CurrentPlayer + (offset)))
 #define PLAYER_CROUCHPOS PLAYER_FIELD(s32, 0x9C)
 #define PLAYER_LOOKAHEAD PLAYER_FIELD(s32, 0x118)
 #define PLAYER_VV_THETA PLAYER_FIELD(f32, 0x148)
@@ -52,34 +58,25 @@
 
 // The watch's zoom out of it, the view without a weapon's zoom.
 #define DEFAULT_FOVY 60.0f
-// How far one notch of the wheel zooms the sniper rifle or the camera while right click aims: as C-up or C-down held for
-// 2.5 ticks in aim mode, a quarter of the view, so about ten notches cover the scope's 60 to 7 degrees.
+// How far one notch of the wheel zooms the sniper rifle or the camera while right click aims: as C-up or C-down held
+// for 2.5 ticks in aim mode, a quarter of the view, so about ten notches cover the scope's 60 to 7 degrees.
 #define WHEEL_ZOOM 2.5f
 
 #define CROUCH_SQUAT 0
 #define CROUCH_STAND 2
 
 // An item's statistics: the crosshair's damping and the aim lock's speed.
-#define ITEM_CROSSHAIR_SPEED(stats) (*(f32*)((u8*)(stats) + 0x38))
-#define ITEM_AIM_LOCK_SPEED(stats) (*(f32*)((u8*)(stats) + 0x3C))
+#define ITEM_CROSSHAIR_SPEED(stats) (*(f32*) ((u8*) (stats) + 0x38))
+#define ITEM_AIM_LOCK_SPEED(stats) (*(f32*) ((u8*) (stats) + 0x3C))
 
 #define GUNRIGHT 0
 #define GUNLEFT 1
 
-// recomp_get_pc_actions' bits, one each press.
+// recomp_get_mouse_actions' bits, one each press (src/game/mouse.cpp has them too).
 #define PC_ACTION_RELOAD 0x1
 #define PC_ACTION_CROUCH 0x2
 #define PC_ACTION_NEXT_WEAPON 0x4
 #define PC_ACTION_PREV_WEAPON 0x8
-
-void recomp_take_mouse_look(f32* dx, f32* dy);
-u32 recomp_get_pc_actions(void);
-s32 recomp_mouse_look_enabled(void);
-s32 recomp_mouse_invert_y(void);
-void recomp_mouse_menu_shown(void);
-s32 recomp_mouse_aim_held(void);
-s32 recomp_mouse_playing(void);
-void recomp_mouse_driving_tank(s32 driving);
 
 s32 getCurrentPlayerWeaponId(s32 hand);
 void* get_ptr_item_statistics(s32 item);
@@ -117,7 +114,7 @@ extern f32 g_TankTurretTurn;
 // Degrees a count at 100%.
 #define LOOK_DEGREES_PER_COUNT 0.11f
 // The menu cursor's travel a count at 100%, in the menus' units (the screen is 440 across): at the default 50% a count
-// moves it about as far across a full-screen page as the desktop's pointer goes.
+// moves it about as far across a full-screen window as the desktop's pointer goes.
 #define MENU_UNITS_PER_COUNT 0.5f
 // The menu cursor as the game moves it with the stick: past a dead zone of 5, up to 70 counts more, 0.075 units a tick
 // each and half a unit besides, kept 20 units inside the screen.
@@ -167,8 +164,8 @@ static void apply_pc_actions(u32 actions) {
     // The crouch key toggles a squat, as the PC ports' does. Outside aim mode the game leaves a crouch as it is, so
     // anything else that stands Bond up (a new level, the tank) ends the key's; in aim mode the game stands him back
     // up every tick C-up isn't held, unless C-down is, so while the key's squat lasts it is put back each tick.
-    if (key_crouch && (key_crouch_player != g_CurrentPlayer ||
-                       (!PLAYER_INSIGHTAIMMODE && PLAYER_CROUCHPOS != CROUCH_SQUAT))) {
+    if (key_crouch &&
+        (key_crouch_player != g_CurrentPlayer || (!PLAYER_INSIGHTAIMMODE && PLAYER_CROUCHPOS != CROUCH_SQUAT))) {
         key_crouch = FALSE;
     }
     if (actions & PC_ACTION_CROUCH) {
@@ -181,8 +178,8 @@ static void apply_pc_actions(u32 actions) {
     if (key_crouch && PLAYER_CROUCHPOS != CROUCH_SQUAT) {
         currentPlayerAdjustCrouchPos(CROUCH_SQUAT - CROUCH_STAND);
     }
-    // While right click aims the sniper rifle or the camera, the wheel zooms it (up in, down out), as C-up and C-down do
-    // in aim mode; otherwise it changes weapon.
+    // While right click aims the sniper rifle or the camera, the wheel zooms it (up in, down out), as C-up and C-down
+    // do in aim mode; otherwise it changes weapon.
     s32 item = get_item_in_hand_or_watch_menu(GUNRIGHT);
     if ((item == ITEM_SNIPERRIFLE || item == ITEM_CAMERA) && mouse_aiming()) {
         if (actions & PC_ACTION_PREV_WEAPON) {
@@ -215,16 +212,16 @@ static void turn_tank_turret(f32 degrees_right, f32 degrees_up) {
 // controls while the watch is up and while his arm raises or lowers it too: what comes then is dropped, or the mouse
 // would turn him behind the watch.
 static void take_mouse(void) {
-    u32 actions = recomp_get_pc_actions();
+    u32 actions = recomp_get_mouse_actions();
     f32 dx, dy;
-    recomp_take_mouse_look(&dx, &dy);
+    recomp_get_mouse_deltas(&dx, &dy);
     recomp_mouse_driving_tank(g_PlayerIsInTank == 1 && !PLAYER_INSIGHTAIMMODE);
     if (!PLAYER_OUTSIDE_WATCH_MENU || PLAYER_PAUSING) {
         actions = 0;
     } else if (dx != 0.0f || dy != 0.0f) {
         f32 scale = LOOK_DEGREES_PER_COUNT * zoom_scale();
         f32 right = dx * scale;
-        f32 up = (recomp_mouse_invert_y() ? dy : -dy) * scale;
+        f32 up = (recomp_get_mouse_invert_y() ? dy : -dy) * scale;
         if (g_PlayerIsInTank == 1) {
             turn_tank_turret(right, up);
         } else {
@@ -277,14 +274,13 @@ RECOMP_PATCH void bondviewTriggerWatchZoom(f32 fovy) {
 }
 
 // The look-ahead option centres the view up and down while Bond walks, which would undo the mouse's: off while the
-// mouse looks, the saved option as it was.
+// mouse plays, the saved option as it was. The game sets it each tick.
 RECOMP_PATCH void currentPlayerSetLookAheadSetting(s32 setting) {
-    PLAYER_LOOKAHEAD = recomp_mouse_look_enabled() ? 0 : setting;
+    PLAYER_LOOKAHEAD = recomp_mouse_playing() ? 0 : setting;
 }
 
-// Whether auto-aim moves the crosshair up and down, and across, to its target. Off while the mouse plays (the pointer
-// locked to the game); otherwise as the original has it, the option a level started with in single player and the
-// player's setting in multiplayer.
+// Whether auto-aim moves the crosshair up and down, and across, to its target. Off while the mouse plays; otherwise as
+// the original has it, the option a level started with in single player and the player's setting in multiplayer.
 RECOMP_PATCH bool currentPlayerGetYAutoAimEnabled(void) {
     if (recomp_mouse_playing()) {
         return FALSE;
@@ -313,7 +309,7 @@ static f32 menu_stick_travel(s32 v) {
     } else if (v < -MENU_STICK_MAX) {
         v = -MENU_STICK_MAX;
     }
-    return ((f32)v * MENU_STICK_UNITS + (v > 0 ? MENU_STICK_MIN_UNITS : -MENU_STICK_MIN_UNITS)) * g_GlobalTimerDelta;
+    return ((f32) v * MENU_STICK_UNITS + (v > 0 ? MENU_STICK_MIN_UNITS : -MENU_STICK_MIN_UNITS)) * g_GlobalTimerDelta;
 }
 
 // The menus' cursor, each tick a menu shows it: the stick moves it (the stick's y up, the cursor's down), and the mouse
@@ -321,7 +317,7 @@ static f32 menu_stick_travel(s32 v) {
 RECOMP_PATCH void frontUpdateControlStickPosition(void) {
     f32 dx, dy;
     recomp_mouse_menu_shown();
-    recomp_take_mouse_look(&dx, &dy);
+    recomp_get_mouse_deltas(&dx, &dy);
 
     f32 left = getPlayer_c_screenleft();
     f32 top = getPlayer_c_screentop();
@@ -331,11 +327,11 @@ RECOMP_PATCH void frontUpdateControlStickPosition(void) {
                           top + MENU_CURSOR_MARGIN, top + getPlayer_c_screenheight() - MENU_CURSOR_MARGIN);
 }
 
-// The watch's inventory page: the original moves its cursor an item every tick the stick is pushed all the way (as W and
-// S push it), which at the page's 60 ticks a second runs through the list faster than it can be read; pushed less, it
-// creeps, and C-up and C-down (the Up and Down arrows) step an item a press. While the mouse plays the stick steps as
-// the keys of a PC's list do instead: an item a push, and held, another after 0.4 s and then 7.5 a second, on the
-// retraces' clock. With a pad, or the pointer free, the stick is as the original has it.
+// The watch's inventory page: the original moves its cursor an item every tick the stick is pushed all the way (as W
+// and S push it), which at the watch's 60 ticks a second runs through the list faster than it can be read; pushed less,
+// it creeps, and C-up and C-down (the Up and Down arrows) step an item a press. While the mouse plays the stick steps
+// as the keys of a PC's list do instead: an item a push, and held, another after 0.4 s and then 7.5 a second, on the
+// retraces' clock. Otherwise the stick is as the original has it.
 #define INVENTORY_STICK_PUSHED 0x10
 #define INVENTORY_REPEAT_DELAY 24
 #define INVENTORY_REPEAT_INTERVAL 8
@@ -388,23 +384,24 @@ RECOMP_PATCH void game_options_inventory_navigation(void) {
     count = bondinvCountTotalItemsInInv();
 
     if (!get_debug_gunwatchpos_flag()) {
-        if (joyGetButtonsPressedThisFrame(PLAYER_1, U_JPAD | U_CBUTTONS) || (!mouse && joyGetStickY(PLAYER_1) >= 0x47)) {
-            if (((s32)watch_inventory_cursor_pos > 0) && !watch_item_is_actively_selected) {
+        if (joyGetButtonsPressedThisFrame(PLAYER_1, U_JPAD | U_CBUTTONS) ||
+            (!mouse && joyGetStickY(PLAYER_1) >= 0x47)) {
+            if (((s32) watch_inventory_cursor_pos > 0) && !watch_item_is_actively_selected) {
                 watch_inventory_cursor_pos -= 1.0f;
             }
         } else if (joyGetButtonsPressedThisFrame(PLAYER_1, D_JPAD | D_CBUTTONS) ||
                    (!mouse && joyGetStickY(PLAYER_1) < -0x46)) {
-            if (((s32)watch_inventory_cursor_pos < count - 1) && !watch_item_is_actively_selected) {
+            if (((s32) watch_inventory_cursor_pos < count - 1) && !watch_item_is_actively_selected) {
                 watch_inventory_cursor_pos += 1.0f;
             }
         }
 
         if (joyGetButtons(PLAYER_1, U_JPAD | U_CBUTTONS)) {
-            if (((s32)watch_inventory_cursor_pos > 0) && !watch_item_is_actively_selected) {
+            if (((s32) watch_inventory_cursor_pos > 0) && !watch_item_is_actively_selected) {
                 watch_inventory_cursor_pos -= 0.1f;
             }
         } else if (joyGetButtons(PLAYER_1, D_JPAD | D_CBUTTONS)) {
-            if (((s32)watch_inventory_cursor_pos < count - 1) && !watch_item_is_actively_selected) {
+            if (((s32) watch_inventory_cursor_pos < count - 1) && !watch_item_is_actively_selected) {
                 watch_inventory_cursor_pos += 0.1f;
             }
         }
@@ -425,10 +422,10 @@ RECOMP_PATCH void game_options_inventory_navigation(void) {
     } else {
         if (joyGetStickY(PLAYER_1) >= 0x1f && joyGetStickY(PLAYER_1) < 0x46 && g_curWatchItemIndex > 0 &&
             !watch_item_is_actively_selected) {
-            watch_inventory_cursor_pos -= (f32)joyGetStickY(PLAYER_1) / 300.0f;
+            watch_inventory_cursor_pos -= (f32) joyGetStickY(PLAYER_1) / 300.0f;
         } else if (joyGetStickY(PLAYER_1) < -0x1e && joyGetStickY(PLAYER_1) >= -0x45 &&
-                   (s32)watch_inventory_cursor_pos < count - 1 && !watch_item_is_actively_selected) {
-            watch_inventory_cursor_pos -= (f32)joyGetStickY(PLAYER_1) / 300.0f;
+                   (s32) watch_inventory_cursor_pos < count - 1 && !watch_item_is_actively_selected) {
+            watch_inventory_cursor_pos -= (f32) joyGetStickY(PLAYER_1) / 300.0f;
         }
 
         if (watch_stick_y_pressed_up() && g_curWatchItemIndex > 0 && !watch_item_is_actively_selected) {
@@ -445,8 +442,8 @@ RECOMP_PATCH void game_options_inventory_navigation(void) {
         watch_stick_y_prev_active = 0;
     }
 
-    if ((f32)count - 0.5f < watch_inventory_cursor_pos) {
-        watch_inventory_cursor_pos = (f32)count - 0.5f;
+    if ((f32) count - 0.5f < watch_inventory_cursor_pos) {
+        watch_inventory_cursor_pos = (f32) count - 0.5f;
     }
 
     if (watch_inventory_cursor_pos < -0.5f) {
@@ -454,7 +451,7 @@ RECOMP_PATCH void game_options_inventory_navigation(void) {
     }
 
     // The current item is determined by the integer part of the cursor's position.
-    g_curWatchItemIndex = (s32)watch_inventory_cursor_pos;
+    g_curWatchItemIndex = (s32) watch_inventory_cursor_pos;
 
     item_line_height = j_text_trigger ? 14 : 12;
     selected_item_line_height = j_text_trigger ? 14 : 12;
@@ -472,9 +469,9 @@ RECOMP_PATCH void game_options_inventory_navigation(void) {
         watch_inventory_text_is_settled = TRUE;
     }
 
-    if (((f32)g_curWatchItemIndex + 0.55f < watch_inventory_cursor_pos) && !joyGetButtons(PLAYER_1, 0xffff)) {
+    if (((f32) g_curWatchItemIndex + 0.55f < watch_inventory_cursor_pos) && !joyGetButtons(PLAYER_1, 0xffff)) {
         watch_inventory_cursor_pos -= 0.1f;
-    } else if (watch_inventory_cursor_pos <= (f32)g_curWatchItemIndex + 0.45f && !joyGetButtons(PLAYER_1, 0xffff)) {
+    } else if (watch_inventory_cursor_pos <= (f32) g_curWatchItemIndex + 0.45f && !joyGetButtons(PLAYER_1, 0xffff)) {
         watch_inventory_cursor_pos += 0.1f;
     }
 }
