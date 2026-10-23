@@ -143,7 +143,9 @@ the game's side and `src/game/mouse_keyboard.cpp` the program's.
 - Left click fires (also F), right click aims, the wheel changes weapon, R reloads, and Left Ctrl or C crouches, a
   toggle aim mode keeps. Left Shift is R, the game's own aim mode. WASD walks and strafes, the arrows turn and look, Space or Q is A (weapon), E is
   B (use), X is L, Return or Tab is Start (the watch). Motion and keys while the watch is up do nothing.
-- Settings > General > Mouse Sensitivity sets how far a count goes; 0 turns mouse look off and frees the pointer.
+- Settings > General > Mouse Sensitivity sets how far a count goes, 50% by default; 0 turns mouse look off and frees
+  the pointer. A config saved before mouse look came holds the frontend's default then, 0, and loads as 50%
+  (src/game/mouse_keyboard.cpp).
   Above 0 RecompFrontend asks for the browser's pointer lock once the game starts, which a browser grants only at a
   click or a key.
 - Played in Dam in Chrome (headless and off the desktop) and Firefox, with synthetic mouse events and Bond's angles,

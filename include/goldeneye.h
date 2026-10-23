@@ -21,6 +21,7 @@ namespace goldeneye {
     // config is loaded; the Mouse Sensitivity option, in the General tab; the pad with the mouse's buttons on it.
     void init_mouse_keyboard();
     void add_mouse_option(recomp::config::Config& general);
+    void mouse_option_loaded();
     bool get_input(int controller_num, uint16_t* buttons_out, float* x_out, float* y_out);
 
     // The game entry's on_init_callback: turns the stored retail ROM into the TLBFREE ROM the code was recompiled

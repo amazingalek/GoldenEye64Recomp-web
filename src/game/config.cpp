@@ -27,4 +27,5 @@ void goldeneye::init_config() {
     recompui::config::create_sound_tab();
     recompui::config::create_mods_tab();
     recompui::config::finalize();
+    goldeneye::mouse_option_loaded();
 }

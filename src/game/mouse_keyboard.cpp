@@ -11,7 +11,8 @@
 //   turn it, while the mouse plays;
 // - the motion, gathered from every event until the patches take it, since the frontend keeps only what came since
 //   its last poll and the game reads its controls at its own rate;
-// - the keyboard's default bindings, the Mouse Sensitivity option, on at 50%, and Invert Mouse Y, off.
+// - the keyboard's default bindings, the Mouse Sensitivity option, on at 50% (and 50% from a config whose 0% is an
+//   older build's default), and Invert Mouse Y, off.
 // None of it reaches the game while the frontend's menus have the input, or while the pointer isn't locked.
 
 #include <algorithm>
@@ -121,6 +122,13 @@ namespace {
         { InvertY::On, "On" },
     };
 
+    // A hidden option, off by default and on in every config this build saves (mouse_option_loaded turns it on once the
+    // config is loaded). Builds before it had the frontend's stock Mouse Sensitivity, whose default is 0%, and wrote
+    // it into the config, a page's too until it saved only what its player changed: so 0% in a config with it off is
+    // that old default, not a choice, and loads as 50%. Off is the default so that a page, which leaves defaults out,
+    // keeps it.
+    const std::string mouse_default_option = "mouse_sensitivity_default_50";
+
     float mouse_sensitivity() {
         return (float)recompui::config::general::get_mouse_sensitivity() / 100.0f;
     }
@@ -186,6 +194,20 @@ void goldeneye::add_mouse_option(recomp::config::Config& general) {
         invert_y_options,
         InvertY::Off
     );
+
+    general.add_bool_option(mouse_default_option, "", "", false, true);
+}
+
+void goldeneye::mouse_option_loaded() {
+    recomp::config::Config& general = recompui::config::get_general_config();
+    if (std::get<bool>(general.get_option_value(mouse_default_option))) {
+        return;
+    }
+    general.set_option_value(mouse_default_option, true);
+    if (std::get<double>(general.get_option_value(recompui::config::general::options::mouse_sensitivity)) == 0.0) {
+        general.set_option_value(recompui::config::general::options::mouse_sensitivity, 50.0);
+        general.save_config();
+    }
 }
 
 bool goldeneye::get_input(int controller_num, uint16_t* buttons_out, float* x_out, float* y_out) {
