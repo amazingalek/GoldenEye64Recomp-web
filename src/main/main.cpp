@@ -13,6 +13,15 @@
 #include "ultramodern/ultra64.h"
 #include "ultramodern/ultramodern.hpp"
 #define SDL_MAIN_HANDLED
+// RecompFrontend before SDL: on Linux SDL_syswm.h brings in X11, whose macros (None, Bool) break RmlUi's headers.
+#include "recompui/recompui.h"
+#include "recompui/program_config.h"
+#include "recompui/renderer.h"
+#include "recompui/config.h"
+#include "util/file.h"
+#include "recompinput/recompinput.h"
+#include "recompinput/input_events.h"
+#include "recompinput/profiles.h"
 #ifdef _WIN32
 #include "SDL.h"
 #else
@@ -22,15 +31,11 @@
 #include "SDL2/SDL_metal.h"
 #endif
 #endif
+#if defined(__linux__)
+// X11's None (from SDL_syswm.h) would replace ultramodern's Device::None and Pak::None below.
+#undef None
+#endif
 
-#include "recompui/recompui.h"
-#include "recompui/program_config.h"
-#include "recompui/renderer.h"
-#include "recompui/config.h"
-#include "util/file.h"
-#include "recompinput/recompinput.h"
-#include "recompinput/input_events.h"
-#include "recompinput/profiles.h"
 #include "zelda_config.h"
 #include "zelda_sound.h"
 #include "ovl_patches.hpp"

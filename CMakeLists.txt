@@ -5,6 +5,11 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# RecompFrontend builds Objective-C++ on Apple (recompui's support_apple.mm).
+if (APPLE)
+    enable_language(OBJC OBJCXX)
+endif()
+
 # Newer Apple clang, and LLVM's clang-cl on Windows, advertise __cpp_consteval but
 # reject fmt's consteval format-string checks; disable them so macOS and Windows
 # build cleanly (see the guard in lib/fmt/include/fmt/base.h).
