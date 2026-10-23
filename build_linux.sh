@@ -93,7 +93,7 @@ if [ ! -f lib/ge/include/PR/ultratypes.h ]; then
 fi
 
 echo "== [3/4] Configuring"
-# CMAKE_POLICY_VERSION_MINIMUM: CMake 4 refuses old submodules (lib/lunasvg asks for < 3.5)
+# CMAKE_POLICY_VERSION_MINIMUM: CMake 4 refuses a dependency that asks for a CMake older than 3.5
 # clang explicitly: CMake otherwise picks GCC, and GCC 14+ rejects the recompiled patches.c
 # -Wno-error=...: rt64 builds with -Werror; clang 20/21 add these warnings, all hit only in its bundled
 #   imgui/json. -Wno-unknown-warning-option keeps older clang from choking on the newer names.

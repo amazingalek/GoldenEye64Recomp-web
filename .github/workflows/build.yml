@@ -43,7 +43,7 @@ env:
   CCACHE_COMPILERCHECK: content
   CCACHE_MAXSIZE: 1G
   # ccache can't cache compiles that use a precompiled header, and RmlUi uses one for every file.
-  EXTRA_CMAKE_ARGS: -DENABLE_PRECOMPILED_HEADERS=OFF
+  EXTRA_CMAKE_ARGS: -DRMLUI_PRECOMPILED_HEADERS=OFF
 
 jobs:
   # Works out the release tag, if any, and checks it before an hour of runner time is spent on it.

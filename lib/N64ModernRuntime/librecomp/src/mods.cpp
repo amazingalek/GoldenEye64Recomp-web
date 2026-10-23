@@ -7,6 +7,7 @@
 #include "librecomp/mods.hpp"
 #include "librecomp/overlays.hpp"
 #include "librecomp/game.hpp"
+#include "librecomp/patcher.hpp"
 #include "recompiler/context.h"
 #include "recompiler/live_recompiler.h"
 
@@ -131,7 +132,7 @@ public:
 
     template <typename T>
     bool get_dll_symbol(T& out, const char* name) const {
-        out = (T)GetProcAddress(native_handle, name);
+        out = (T)(void*)GetProcAddress(native_handle, name);
         if (out == nullptr) {
             return false;
         }
@@ -252,6 +253,7 @@ namespace modpaths {
     constexpr std::string_view default_mod_extension = "nrm";
     constexpr std::string_view binary_path = "mod_binary.bin";
     constexpr std::string_view binary_syms_path = "mod_syms.bin";
+    constexpr std::string_view rom_patch_path = "patch.bps";
 };
 
 recomp::mods::CodeModLoadError recomp::mods::validate_api_version(uint32_t api_version, std::string& error_param) {
@@ -266,9 +268,9 @@ recomp::mods::CodeModLoadError recomp::mods::validate_api_version(uint32_t api_v
     }
 }
 
-recomp::mods::ModHandle::ModHandle(const ModContext& context, ModManifest&& manifest, ConfigStorage&& config_storage, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& content_types, std::vector<char>&& thumbnail) :
+recomp::mods::ModHandle::ModHandle(const ModContext& context, ModManifest&& manifest, recomp::config::Config&& config, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& content_types, std::vector<char>&& thumbnail) :
     manifest(std::move(manifest)),
-    config_storage(std::move(config_storage)),
+    config(std::move(config)),
     code_handle(),
     recompiler_context{std::make_unique<N64Recomp::Context>()},
     content_types{std::move(content_types)},
@@ -327,6 +329,7 @@ recomp::mods::CodeModLoadError recomp::mods::ModHandle::load_native_library(cons
         return api_error;
     }
 
+    native_library_exports.clear();
     for (const std::string& export_name : lib_manifest.exports) {
         recomp_func_t* cur_func;
         if (native_library_exports.contains(export_name)) {
@@ -504,18 +507,20 @@ recomp::mods::LiveRecompilerCodeHandle::LiveRecompilerCodeHandle(
     N64Recomp::LiveGenerator generator{ context.functions.size(), recompiler_inputs };
     std::vector<std::vector<uint32_t>> dummy_static_funcs{};
 
+    bool errored = false;
+
     for (size_t func_index = 0; func_index < context.functions.size(); func_index++) {
         std::ostringstream dummy_ostream{};
 
         if (!N64Recomp::recompile_function_live(generator, context, func_index, dummy_ostream, dummy_static_funcs, true)) {
-            is_good = false;
+            errored = true;
             break;
         }
     }
 
     // Generate the code.
     recompiler_output = std::make_unique<N64Recomp::LiveGeneratorOutput>(generator.finish());
-    is_good = recompiler_output->good;
+    is_good = !errored && recompiler_output->good;
 }
 
 void recomp::mods::LiveRecompilerCodeHandle::set_imported_function(size_t import_index, GenericFunction func) {
@@ -594,12 +599,12 @@ void unpatch_func(void* target_func, const recomp::mods::PatchData& data) {
     protect(target_func, old_flags);
 }
 
-void recomp::mods::ModContext::add_opened_mod(ModManifest&& manifest, ConfigStorage&& config_storage, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types, std::vector<char>&& thumbnail) {
+void recomp::mods::ModContext::add_opened_mod(ModManifest&& manifest, config::Config&& config, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types, std::vector<char>&& thumbnail) {
     std::unique_lock lock(opened_mods_mutex);
     size_t mod_index = opened_mods.size();
     opened_mods_by_id.emplace(manifest.mod_id, mod_index);
     opened_mods_by_filename.emplace(manifest.mod_root_path.filename().native(), mod_index);
-    opened_mods.emplace_back(*this, std::move(manifest), std::move(config_storage), std::move(game_indices), std::move(detected_content_types), std::move(thumbnail));
+    opened_mods.emplace_back(*this, std::move(manifest), std::move(config), std::move(game_indices), std::move(detected_content_types), std::move(thumbnail));
     opened_mods_order.emplace_back(mod_index);
 }
 
@@ -631,60 +636,34 @@ void recomp::mods::ModContext::register_embedded_mod(const std::string &mod_id, 
     embedded_mod_bytes.emplace(mod_id, mod_bytes);
 }
 
+void recomp::mods::ModContext::register_deprecated_mod(const std::string& mod_id, DeprecationStatus deprecation_status, const Version &maximum_version) {
+    deprecated_mods[mod_id].status = deprecation_status;
+    deprecated_mods[mod_id].maximum_version = maximum_version;
+}
+
 void recomp::mods::ModContext::close_mods() {
     std::unique_lock lock(opened_mods_mutex);
     opened_mods_by_id.clear();
     opened_mods_by_filename.clear();
     opened_mods.clear();
     opened_mods_order.clear();
+    mod_order_lookup.clear();
     mod_ids.clear();
     enabled_mods.clear();
     auto_enabled_mods.clear();
 }
 
-bool save_mod_config_storage(const std::filesystem::path &path, const std::string &mod_id, const recomp::Version &mod_version, const recomp::mods::ConfigStorage &config_storage, const recomp::mods::ConfigSchema &config_schema) {
+bool save_mod_config_storage(const std::string &mod_id, const recomp::Version &mod_version, const recomp::config::Config *config, nlohmann::json &storage_json) {
     using json = nlohmann::json;
     json config_json;
     config_json["mod_id"] = mod_id;
     config_json["mod_version"] = mod_version.to_string();
     config_json["recomp_version"] = recomp::get_project_version().to_string();
-
-    json &storage_json = config_json["storage"];
-    for (auto it : config_storage.value_map) {
-        auto id_it = config_schema.options_by_id.find(it.first);
-        if (id_it == config_schema.options_by_id.end()) {
-            continue;
-        }
-
-        const recomp::mods::ConfigOption &config_option = config_schema.options[id_it->second];
-        switch (config_option.type) {
-        case recomp::mods::ConfigOptionType::Enum:
-            storage_json[it.first] = std::get<recomp::mods::ConfigOptionEnum>(config_option.variant).options[std::get<uint32_t>(it.second)];
-            break;
-        case recomp::mods::ConfigOptionType::Number:
-            storage_json[it.first] = std::get<double>(it.second);
-            break;
-        case recomp::mods::ConfigOptionType::String:
-            storage_json[it.first] = std::get<std::string>(it.second);
-            break;
-        default:
-            assert(false && "Unknown config type.");
-            break;
-        }
-    }
-
-    std::ofstream output_file = recomp::open_output_file_with_backup(path);
-    if (!output_file.good()) {
-        return false;
-    }
-
-    output_file << std::setw(4) << config_json;
-    output_file.close();
-
-    return recomp::finalize_output_file_with_backup(path);
+    config_json["storage"] = storage_json;
+    return config->save_config_json(config_json);
 }
 
-bool parse_mods_config(const std::filesystem::path &path, std::unordered_set<std::string> &enabled_mods, std::vector<std::string> &mod_order) {
+bool parse_mods_config(const std::filesystem::path &path, std::string& latest_game_mode, std::unordered_set<std::string> &enabled_mods, std::vector<std::string> &mod_order) {
     using json = nlohmann::json;
     json config_json;
     if (!read_json_with_backups(path, config_json)) {
@@ -706,13 +685,25 @@ bool parse_mods_config(const std::filesystem::path &path, std::unordered_set<std
         get_to_vec<std::string>(*mod_order_json, mod_order);
     }
 
+    auto latest_game_mode_json = config_json.find("latest_game_mode");
+    if (latest_game_mode_json != config_json.end()) {
+        const std::string* temp_ptr = latest_game_mode_json->get_ptr<const std::string*>();
+        if (temp_ptr == nullptr) {
+            latest_game_mode = {};
+        }
+        else {
+            latest_game_mode = *temp_ptr;
+        }
+    }
+
     return true;
 }
 
-bool save_mods_config(const std::filesystem::path &path, const std::unordered_set<std::string> &enabled_mods, const std::vector<std::string> &mod_order) {
+bool save_mods_config(const std::filesystem::path &path, const std::string& latest_game_mode, const std::unordered_set<std::string> &enabled_mods, const std::vector<std::string> &mod_order) {
     nlohmann::json config_json;
     config_json["enabled_mods"] = enabled_mods;
     config_json["mod_order"] = mod_order;
+    config_json["latest_game_mode"] = latest_game_mode;
 
     std::ofstream output_file = recomp::open_output_file_with_backup(path);
     if (!output_file.good()) {
@@ -727,12 +718,13 @@ bool save_mods_config(const std::filesystem::path &path, const std::unordered_se
 
 void recomp::mods::ModContext::dirty_mod_configuration_thread_process() {
     using namespace std::chrono_literals;
+    using json = nlohmann::json;
+
     ModConfigQueueVariant variant;
     ModConfigQueueSaveMod save_mod;
     std::unordered_set<std::string> pending_mods;
-    std::unordered_map<std::string, ConfigStorage> pending_mod_storage;
-    std::unordered_map<std::string, ConfigSchema> pending_mod_schema;
-    std::unordered_map<std::string, Version> pending_mod_version;
+    std::unordered_map<std::string, const recomp::config::Config*> pending_mod_configs;
+    std::unordered_map<std::string, json> pending_mod_storage_json;
     std::unordered_set<std::string> config_enabled_mods;
     std::vector<std::string> config_mod_order;
     bool pending_config_save = false;
@@ -747,6 +739,9 @@ void recomp::mods::ModContext::dirty_mod_configuration_thread_process() {
         }
         else if (const ModConfigQueueSaveMod* queue_save_mod = std::get_if<ModConfigQueueSaveMod>(&variant)) {
             pending_mods.emplace(queue_save_mod->mod_id);
+        }
+        else if (const ModConfigSetLatestGamemode* set_latest_game_mode = std::get_if<ModConfigSetLatestGamemode>(&variant)) {
+            pending_config_save = true;
         }
     };
 
@@ -769,16 +764,14 @@ void recomp::mods::ModContext::dirty_mod_configuration_thread_process() {
                     if (it != opened_mods_by_id.end()) {
                         const ModHandle &mod = opened_mods[it->second];
                         std::unique_lock config_storage_lock(mod_config_storage_mutex);
-                        pending_mod_storage[id] = mod.config_storage;
-                        pending_mod_schema[id] = mod.manifest.config_schema;
-                        pending_mod_version[id] = mod.manifest.version;
+                        pending_mod_configs[id] = &mod.config;
+                        pending_mod_storage_json[id] = mod.config.get_json_config();
                     }
                 }
             }
 
             for (const std::string &id : pending_mods) {
-                config_path = mod_config_directory / std::string(id + ".json");
-                save_mod_config_storage(config_path, id, pending_mod_version[id], pending_mod_storage[id], pending_mod_schema[id]);
+                pending_mod_configs[id]->save_config_json(pending_mod_storage_json[id]);
             }
 
             pending_mods.clear();
@@ -795,7 +788,7 @@ void recomp::mods::ModContext::dirty_mod_configuration_thread_process() {
                 }
             }
 
-            save_mods_config(mods_config_path, config_enabled_mods, config_mod_order);
+            save_mods_config(mods_config_path, latest_game_mode, config_enabled_mods, config_mod_order);
             pending_config_save = false;
         }
     }
@@ -855,7 +848,7 @@ void recomp::mods::ModContext::load_mods_config() {
     std::unordered_set<std::string> config_enabled_mods;
     std::vector<std::string> config_mod_order;
     std::vector<bool> opened_mod_is_known;
-    parse_mods_config(mods_config_path, config_enabled_mods, config_mod_order);
+    parse_mods_config(mods_config_path, latest_game_mode, config_enabled_mods, config_mod_order);
 
     // Fill a vector with the relative order of the mods. Existing mods will get ordered below new mods.
     std::vector<size_t> sort_order;
@@ -876,6 +869,8 @@ void recomp::mods::ModContext::load_mods_config() {
         return sort_order[i] < sort_order[j];
     });
 
+    rebuild_mod_order_lookup();
+
     // Enable mods that are specified in the configuration or mods that are considered new.
     for (size_t i = 0; i < opened_mods.size(); i++) {
         const ModHandle& mod = opened_mods[i];
@@ -885,6 +880,18 @@ void recomp::mods::ModContext::load_mods_config() {
         if (is_default_enabled || is_manually_enabled) {
             enable_mod(mod_id, true, false);
         }
+    }
+}
+
+void recomp::mods::ModContext::rebuild_mod_order_lookup() {
+    // Initialize the mod order lookup to all -1 so that mods that aren't enabled have an order index of -1.
+    mod_order_lookup.resize(opened_mods.size());
+    std::fill(mod_order_lookup.begin(), mod_order_lookup.end(), static_cast<size_t>(-1));
+
+    // Build the lookup of mod index to mod order by inverting the opened mods order list.
+    for (size_t mod_order_index = 0; mod_order_index < opened_mods_order.size(); mod_order_index++) {
+        size_t mod_index = opened_mods_order[mod_order_index];
+        mod_order_lookup[mod_index] = mod_order_index;
     }
 }
 
@@ -898,6 +905,16 @@ recomp::mods::ModContext::ModContext() {
         .on_reordered = nullptr
     };
     code_content_type_id = register_content_type(code_content_type);
+
+    // Register the ROM patch content type.
+    ModContentType rom_patch_content_type {
+        .content_filename = std::string{modpaths::rom_patch_path},
+        .allow_runtime_toggle = false,
+        .on_enabled = nullptr,
+        .on_disabled = nullptr,
+        .on_reordered = nullptr
+    };
+    rom_patch_content_type_id = register_content_type(rom_patch_content_type);
     
     // Register the default mod container type (.nrm) and allow it to have any content type by passing an empty vector.
     register_container_type(std::string{ modpaths::default_mod_extension }, {}, true);
@@ -959,6 +976,45 @@ bool recomp::mods::ModContext::register_container_type(const std::string& extens
     return true;
 }
 
+std::string recomp::mods::ModContext::get_mod_display_name(size_t mod_index) const {
+    return opened_mods[mod_index].manifest.display_name;
+}
+
+std::filesystem::path recomp::mods::ModContext::get_mod_path(size_t mod_index) const {
+    return opened_mods[mod_index].manifest.mod_root_path;
+}
+
+std::pair<std::string, std::string> recomp::mods::ModContext::get_mod_import_info(size_t mod_index, size_t import_index) const {
+    const ModHandle& mod = opened_mods[mod_index];
+    const N64Recomp::ImportSymbol& imported_func = mod.recompiler_context->import_symbols[import_index];
+    const std::string& dependency_id = mod.recompiler_context->dependencies[imported_func.dependency_index];
+
+    return std::make_pair<std::string, std::string>(std::string{ dependency_id }, std::string{ imported_func.base.name });
+}
+
+recomp::mods::DependencyStatus recomp::mods::ModContext::is_dependency_met(size_t mod_index, const std::string& dependency_id) const {
+    const ModHandle& mod = opened_mods[mod_index];
+
+    auto find_dep = mod.manifest.dependencies_by_id.find(dependency_id);
+    if (find_dep == mod.manifest.dependencies_by_id.end()) {
+        return DependencyStatus::InvalidDependency;
+    }
+
+    auto find_dep_mod = loaded_mods_by_id.find(dependency_id);
+    if (find_dep_mod == loaded_mods_by_id.end()) {
+        return DependencyStatus::NotFound;
+    }
+
+    const Dependency& dep = mod.manifest.dependencies[find_dep->second];
+    const ModHandle& dep_mod = opened_mods[find_dep_mod->second];
+
+    if (dep_mod.manifest.version < dep.version) {
+        return DependencyStatus::WrongVersion;
+    }
+
+    return DependencyStatus::Found;
+}
+
 bool recomp::mods::ModContext::is_content_runtime_toggleable(ModContentTypeId content_type) const {
     assert(content_type.value < content_types.size());
 
@@ -986,6 +1042,11 @@ void recomp::mods::ModContext::enable_mod(const std::string& mod_id, bool enable
         return;
     }
 
+    // Do nothing if this mod was deprecated.
+    if (is_mod_deprecated(mod.manifest.mod_id, mod.manifest.version)) {
+        return;
+    }
+
     if (enabled) {
         bool was_enabled = enabled_mods.emplace(mod_id).second;
 
@@ -1010,7 +1071,7 @@ void recomp::mods::ModContext::enable_mod(const std::string& mod_id, bool enable
                 if (mod_from_stack_it != opened_mods_by_id.end()) {
                     const ModHandle &mod_from_stack_handle = opened_mods[mod_from_stack_it->second];
                     for (const Dependency &dependency : mod_from_stack_handle.manifest.dependencies) {
-                        if (!auto_enabled_mods.contains(dependency.mod_id)) {
+                        if (!dependency.optional && !auto_enabled_mods.contains(dependency.mod_id) && !is_mod_deprecated(dependency.mod_id, dependency.version)) {
                             auto_enabled_mods.emplace(dependency.mod_id);
                             mod_stack.emplace_back(dependency.mod_id);
 
@@ -1055,7 +1116,7 @@ void recomp::mods::ModContext::enable_mod(const std::string& mod_id, bool enable
                     if (mod_from_stack_it != opened_mods_by_id.end()) {
                         const ModHandle &mod_from_stack_handle = opened_mods[mod_from_stack_it->second];
                         for (const Dependency &dependency : mod_from_stack_handle.manifest.dependencies) {
-                            if (!new_auto_enabled_mods.contains(dependency.mod_id)) {
+                            if (!dependency.optional && !new_auto_enabled_mods.contains(dependency.mod_id) && !is_mod_deprecated(dependency.mod_id, dependency.version)) {
                                 new_auto_enabled_mods.emplace(dependency.mod_id);
                                 mod_stack.emplace_back(dependency.mod_id);
                             }
@@ -1091,12 +1152,42 @@ void recomp::mods::ModContext::enable_mod(const std::string& mod_id, bool enable
     }
 }
 
-bool recomp::mods::ModContext::is_mod_enabled(const std::string& mod_id) {
+bool recomp::mods::ModContext::is_mod_enabled(const std::string& mod_id) const {
     return enabled_mods.contains(mod_id);
 }
 
-bool recomp::mods::ModContext::is_mod_auto_enabled(const std::string& mod_id) {
+bool recomp::mods::ModContext::is_mod_auto_enabled(const std::string& mod_id) const {
     return auto_enabled_mods.contains(mod_id);
+}
+
+bool recomp::mods::ModContext::is_mod_deprecated(const std::string& mod_id, const Version& mod_version) const {
+    auto it = deprecated_mods.find(mod_id);
+    if (it != deprecated_mods.end()) {
+        return (it->second.status != recomp::mods::DeprecationStatus::Unknown) && (it->second.maximum_version.is_null() || (mod_version <= it->second.maximum_version));
+    }
+    else {
+        return false;
+    }
+}
+
+recomp::mods::DeprecationStatus recomp::mods::ModContext::get_mod_deprecation_status(const std::string& mod_id) const {
+    auto it = deprecated_mods.find(mod_id);
+    if (it != deprecated_mods.end()) {
+        return it->second.status;
+    }
+    else {
+        return recomp::mods::DeprecationStatus::Unknown;
+    }
+}
+
+recomp::Version recomp::mods::ModContext::get_mod_deprecation_version(const std::string& mod_id) const {
+    auto it = deprecated_mods.find(mod_id);
+    if (it != deprecated_mods.end()) {
+        return it->second.maximum_version;
+    }
+    else {
+        return Version();
+    }
 }
 
 size_t recomp::mods::ModContext::num_opened_mods() {
@@ -1127,14 +1218,18 @@ size_t recomp::mods::ModContext::get_mod_order_index(const std::string& mod_id) 
         return static_cast<size_t>(-1);
     }
 
-    // TODO keep a mapping of mod index to mod order index to prevent needing a lookup here.
-    auto find_order_it = std::find(opened_mods_order.begin(), opened_mods_order.end(), find_it->second);
-    if (find_order_it == opened_mods_order.end()) {
+    return get_mod_order_index(find_it->second);
+}
+
+size_t recomp::mods::ModContext::get_mod_order_index(size_t mod_index) const {
+    size_t order_index = mod_order_lookup[mod_index];
+    // Check if the mod has a proper order index and assert if it doesn't, as that means the mod isn't actually loaded.
+    if (order_index == static_cast<size_t>(-1)) {
         assert(false);
         return static_cast<size_t>(-1);
     }
 
-    return find_order_it - opened_mods_order.begin();
+    return order_index;
 }
 
 std::optional<recomp::mods::ModDetails> recomp::mods::ModContext::get_details_for_mod(const std::string& mod_id) const {
@@ -1164,6 +1259,29 @@ std::vector<recomp::mods::ModDetails> recomp::mods::ModContext::get_all_mod_deta
             std::vector<Dependency> cur_dependencies{};
 
             ret.emplace_back(mod.get_details());
+        }
+    }
+
+    return ret;
+}
+
+size_t recomp::mods::ModContext::game_mode_count(const std::string& mod_game_id, bool include_disabled) const {
+    size_t ret = 0;
+    bool all_games = mod_game_id.empty();
+    size_t game_index = (size_t)-1;
+
+    auto find_game_it = mod_game_ids.find(mod_game_id);
+    if (find_game_it != mod_game_ids.end()) {
+        game_index = find_game_it->second;
+    }
+
+    for (const ModHandle &mod : opened_mods) {
+        if (all_games || mod.is_for_game(game_index)) {
+            if (include_disabled || is_mod_enabled(mod.manifest.mod_id) || is_mod_auto_enabled(mod.manifest.mod_id)) {
+                if (mod.manifest.custom_gamemode) {
+                    ret++;
+                }
+            }
         }
     }
 
@@ -1289,7 +1407,13 @@ N64Recomp::Context context_from_regenerated_list(const RegeneratedList& regenlis
 
             reloc_out.address = reloc_in.section_offset + section_out.ram_addr;
             reloc_out.target_section_offset = reloc_in.target_section_offset;
-            reloc_out.symbol_index = 0; // Unused for live recompilation.
+            if (reloc_in.target_section == N64Recomp::SectionEvent) {
+                // Symbol index holds the event index for event reference symbols.
+                reloc_out.symbol_index = reloc_in.target_section_offset;
+            }
+            else {
+                reloc_out.symbol_index = 0; // Unused for live recompilation.
+            }
             reloc_out.target_section = reloc_in.target_section;
             reloc_out.type = static_cast<N64Recomp::RelocType>(reloc_in.type);
             reloc_out.reference_symbol = true;
@@ -1340,6 +1464,8 @@ void recomp::mods::ModContext::set_mod_index(const std::string &mod_game_id, con
         opened_mods_order.push_back(mod_index);
     }
 
+    rebuild_mod_order_lookup();
+
     for (ModContentTypeId type_id : opened_mods[mod_index].content_types) {
         content_reordered_callback* callback = content_types[type_id.value].on_reordered;
         if (callback) {
@@ -1350,7 +1476,7 @@ void recomp::mods::ModContext::set_mod_index(const std::string &mod_game_id, con
     mod_configuration_thread_queue.enqueue(ModConfigQueueSave());
 }
 
-const recomp::mods::ConfigSchema &recomp::mods::ModContext::get_mod_config_schema(const std::string &mod_id) const {
+const recomp::config::ConfigSchema &recomp::mods::ModContext::get_mod_config_schema(const std::string &mod_id) const {
     // Check that the mod exists.
     auto find_it = opened_mods_by_id.find(mod_id);
     if (find_it == opened_mods_by_id.end()) {
@@ -1358,7 +1484,18 @@ const recomp::mods::ConfigSchema &recomp::mods::ModContext::get_mod_config_schem
     }
 
     const ModHandle &mod = opened_mods[find_it->second];
-    return mod.manifest.config_schema;
+    return mod.config.get_config_schema();
+}
+
+recomp::config::Config *recomp::mods::ModContext::get_mod_config(const std::string &mod_id) {
+    // Check that the mod exists.
+    auto find_it = opened_mods_by_id.find(mod_id);
+    if (find_it == opened_mods_by_id.end()) {
+        return nullptr;
+    }
+
+    ModHandle &mod = opened_mods[find_it->second];
+    return &mod.config;
 }
 
 const std::vector<char> &recomp::mods::ModContext::get_mod_thumbnail(const std::string &mod_id) const {
@@ -1372,7 +1509,7 @@ const std::vector<char> &recomp::mods::ModContext::get_mod_thumbnail(const std::
     return mod.thumbnail;
 }
 
-void recomp::mods::ModContext::set_mod_config_value(size_t mod_index, const std::string &option_id, const ConfigValueVariant &value) {
+void recomp::mods::ModContext::set_mod_config_value(size_t mod_index, const std::string &option_id, const recomp::config::ConfigValueVariant &value) {
     // Check that the mod exists.
     if (mod_index >= opened_mods.size()) {
         return;
@@ -1380,42 +1517,13 @@ void recomp::mods::ModContext::set_mod_config_value(size_t mod_index, const std:
 
     ModHandle &mod = opened_mods[mod_index];
     std::unique_lock lock(mod_config_storage_mutex);
-    auto option_by_id_it = mod.manifest.config_schema.options_by_id.find(option_id);
-    if (option_by_id_it != mod.manifest.config_schema.options_by_id.end()) {
-        // Only accept setting values if the value exists and the variant is the right type.
-        const ConfigOption &option = mod.manifest.config_schema.options[option_by_id_it->second];
-        switch (option.type) {
-        case ConfigOptionType::Enum:
-            if (std::holds_alternative<uint32_t>(value)) {
-                if (std::get<uint32_t>(value) < std::get<ConfigOptionEnum>(option.variant).options.size()) {
-                    mod.config_storage.value_map[option_id] = value;
-                }
-            }
-
-            break;
-        case ConfigOptionType::Number:
-            if (std::holds_alternative<double>(value)) {
-                mod.config_storage.value_map[option_id] = value;
-            }
-
-            break;
-        case ConfigOptionType::String:
-            if (std::holds_alternative<std::string>(value)) {
-                mod.config_storage.value_map[option_id] = value;
-            }
-
-            break;
-        default:
-            assert(false && "Unknown config option type.");
-            return;
-        }
-    }
+    mod.config.set_option_value(option_id, value);
 
     // Notify the asynchronous thread it should save the configuration for this mod.
     mod_configuration_thread_queue.enqueue(ModConfigQueueSaveMod{ mod.manifest.mod_id });
 }
 
-void recomp::mods::ModContext::set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value) {
+void recomp::mods::ModContext::set_mod_config_value(const std::string &mod_id, const std::string &option_id, const recomp::config::ConfigValueVariant &value) {
     // Check that the mod exists.
     auto find_it = opened_mods_by_id.find(mod_id);
     if (find_it == opened_mods_by_id.end()) {
@@ -1425,7 +1533,7 @@ void recomp::mods::ModContext::set_mod_config_value(const std::string &mod_id, c
     set_mod_config_value(find_it->second, option_id, value);
 }
 
-recomp::mods::ConfigValueVariant recomp::mods::ModContext::get_mod_config_value(size_t mod_index, const std::string &option_id) const {
+recomp::config::ConfigValueVariant recomp::mods::ModContext::get_mod_config_value(size_t mod_index, const std::string &option_id) const {
     // Check that the mod exists.
     if (mod_index >= opened_mods.size()) {
         return std::monostate();
@@ -1433,33 +1541,10 @@ recomp::mods::ConfigValueVariant recomp::mods::ModContext::get_mod_config_value(
 
     const ModHandle &mod = opened_mods[mod_index];
     std::unique_lock lock(mod_config_storage_mutex);
-    auto it = mod.config_storage.value_map.find(option_id);
-    if (it != mod.config_storage.value_map.end()) {
-        return it->second;
-    }
-    else {
-        // Attempt to see if we can find a default value from the schema.
-        auto option_by_id_it = mod.manifest.config_schema.options_by_id.find(option_id);
-        if (option_by_id_it == mod.manifest.config_schema.options_by_id.end()) {
-            return std::monostate();
-        }
-
-        const ConfigOption &option = mod.manifest.config_schema.options[option_by_id_it->second];
-        switch (option.type) {
-        case ConfigOptionType::Enum:
-            return std::get<ConfigOptionEnum>(option.variant).default_value;
-        case ConfigOptionType::Number:
-            return std::get<ConfigOptionNumber>(option.variant).default_value;
-        case ConfigOptionType::String:
-            return std::get<ConfigOptionString>(option.variant).default_value;
-        default:
-            assert(false && "Unknown config option type.");
-            return std::monostate();
-        }
-    }
+    return mod.config.get_option_value(option_id);
 }
 
-recomp::mods::ConfigValueVariant recomp::mods::ModContext::get_mod_config_value(const std::string &mod_id, const std::string &option_id) const {
+recomp::config::ConfigValueVariant recomp::mods::ModContext::get_mod_config_value(const std::string &mod_id, const std::string &option_id) const {
     // Check that the mod exists.
     auto find_it = opened_mods_by_id.find(mod_id);
     if (find_it == opened_mods_by_id.end()) {
@@ -1477,7 +1562,16 @@ void recomp::mods::ModContext::set_mod_config_directory(const std::filesystem::p
     mod_config_directory = path;
 }
 
-std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mods(const GameEntry& game_entry, uint8_t* rdram, int32_t load_address, uint32_t& ram_used) {
+std::string recomp::mods::ModContext::get_latest_game_mode_id() const {
+    return latest_game_mode;
+}
+
+void recomp::mods::ModContext::set_latest_game_mode_id(const std::string& game_mode_id) {
+    latest_game_mode = game_mode_id;
+    mod_configuration_thread_queue.enqueue(ModConfigSetLatestGamemode());
+}
+
+std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mods(const GameEntry& game_entry, const std::string& game_mode_id, uint8_t* rdram, int32_t load_address, uint32_t& ram_used) {
     std::vector<recomp::mods::ModLoadErrorDetails> ret{};
     ram_used = 0;
     num_events = recomp::overlays::num_base_events();
@@ -1522,15 +1616,18 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
     for (size_t mod_index = 0; mod_index < opened_mods.size(); mod_index++) {
         auto& mod = opened_mods[mod_index];
         if (mod.is_for_game(mod_game_index) && (enabled_mods.contains(mod.manifest.mod_id) || auto_enabled_mods.contains(mod.manifest.mod_id))) {
-            active_mods.push_back(mod_index);
-            loaded_mods_by_id.emplace(mod.manifest.mod_id, mod_index);
+            // Only load gamemode mods if the current gamemode matches the mod id.
+            if (!mod.manifest.custom_gamemode || game_mode_id == mod.manifest.mod_id) {
+                active_mods.push_back(mod_index);
+                loaded_mods_by_id.emplace(mod.manifest.mod_id, mod_index);
 
-            printf("Loading mod %s\n", mod.manifest.mod_id.c_str());
-            std::string load_error_param;
-            ModLoadError load_error = load_mod(mod, load_error_param);
+                printf("Loading mod %s\n", mod.manifest.mod_id.c_str());
+                std::string load_error_param;
+                ModLoadError load_error = load_mod(mod, load_error_param);
 
-            if (load_error != ModLoadError::Good) {
-                ret.emplace_back(mod.manifest.mod_id, load_error, load_error_param);
+                if (load_error != ModLoadError::Good) {
+                    ret.emplace_back(mod.manifest.mod_id, load_error, load_error_param);
+                }
             }
         }
     }
@@ -1539,6 +1636,51 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
     if (!ret.empty()) {
         unload_mods();
         return ret;
+    }
+
+    // Check for ROM patches.
+    size_t rom_patch_mod_index = (size_t)-1;
+    for (size_t mod_index : active_mods) {
+        auto& mod = opened_mods[mod_index];
+        auto find_it = std::find(mod.content_types.begin(), mod.content_types.end(), rom_patch_content_type_id);
+        if (find_it != mod.content_types.end()) {
+            // If a mod has already provided a patch, mark the two as incompatible.
+            if (rom_patch_mod_index != (size_t)-1) {
+                ret.emplace_back(mod.manifest.mod_id, ModLoadError::RomPatchConflict, "conflicts with " + opened_mods[rom_patch_mod_index].manifest.display_name);
+            }
+            else {
+                rom_patch_mod_index = mod_index;
+            }
+        }
+    }
+
+    // Exit early if errors were found.
+    if (!ret.empty()) {
+        unload_mods();
+        return ret;
+    }
+
+    // Apply a ROM patch if one was found.
+    if (rom_patch_mod_index != (size_t)-1) {
+        auto& mod = opened_mods[rom_patch_mod_index];
+        
+        bool patch_exists;
+        std::vector<char> patch_data = mod.manifest.file_handle->read_file(std::string{ modpaths::rom_patch_path }, patch_exists);
+        std::vector<uint8_t> patched_rom;
+
+        // This should never happen, as the content type's presence means the patch file exists. Catch it just in case regardless.
+        if (!patch_exists) {
+            ret.emplace_back(mod.manifest.mod_id, ModLoadError::FailedToLoadPatch, "Internal error");
+            return ret;
+        }
+        
+        auto patch_result = recomp::patcher::patch_rom(recomp::get_rom(), std::span{ reinterpret_cast<const uint8_t*>(patch_data.data()), patch_data.size() }, patched_rom);
+        if (patch_result != recomp::patcher::PatcherResult::Success) {
+            ret.emplace_back(mod.manifest.mod_id, ModLoadError::FailedToLoadPatch, std::string{});
+            return ret;
+        }
+
+        recomp::set_rom_contents(std::move(patched_rom));
     }
 
     // Check that mod dependencies are met.
@@ -1648,12 +1790,13 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
 
     // Regenerate any remaining hook slots that weren't handled during mod recompilation.
 
-    // List of unprocessed hooks and their hook index.
+    // List of unprocessed hooks and their hook index. Also set up which hooks are return hooks.
     std::vector<std::pair<recomp::mods::HookDefinition, size_t>> unprocessed_hooks;
     for (const auto& [def, index] : hook_slots) {
         if (!processed_hook_slots[index]) {
             unprocessed_hooks.emplace_back(std::make_pair(def, index));
         }
+        recomp::mods::set_hook_type(index, def.at_return);
     }
 
     if (!unprocessed_hooks.empty()) {
@@ -1677,6 +1820,9 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
             return ret;
         }
     }
+
+    finish_event_setup(*this);
+    finish_hook_setup(*this);
 
     active_game = mod_game_index;
     return ret;
@@ -2006,25 +2152,28 @@ void recomp::mods::ModContext::check_dependencies(recomp::mods::ModHandle& mod, 
         mod.disable_runtime_toggle();
     }
     for (const recomp::mods::Dependency& cur_dep : mod.manifest.dependencies) {
-        // Look for the dependency in the loaded mod mapping.
-        auto find_loaded_dep_it = loaded_mods_by_id.find(cur_dep.mod_id);
-        if (find_loaded_dep_it == loaded_mods_by_id.end()) {
-            errors.emplace_back(ModLoadError::MissingDependency, cur_dep.mod_id);
-            continue;
-        }
+        if (!cur_dep.optional) {
+            // Look for the dependency in the loaded mod mapping.
+            auto find_loaded_dep_it = loaded_mods_by_id.find(cur_dep.mod_id);
+            if (find_loaded_dep_it != loaded_mods_by_id.end()) {
+                ModHandle& dep_mod = opened_mods[find_loaded_dep_it->second];
+                if (cur_dep.version > dep_mod.manifest.version)
+                {
+                    std::stringstream error_param_stream{};
+                    error_param_stream << "requires mod \"" << cur_dep.mod_id << "\" " <<
+                        (int)cur_dep.version.major << "." << (int)cur_dep.version.minor << "." << (int)cur_dep.version.patch << ", got " <<
+                        (int)dep_mod.manifest.version.major << "." << (int)dep_mod.manifest.version.minor << "." << (int)dep_mod.manifest.version.patch << "";
+                    errors.emplace_back(ModLoadError::WrongDependencyVersion, error_param_stream.str());
+                }
 
-        ModHandle& dep_mod = opened_mods[find_loaded_dep_it->second];
-        if (cur_dep.version > dep_mod.manifest.version)
-        {
-            std::stringstream error_param_stream{};
-            error_param_stream << "requires mod \"" << cur_dep.mod_id << "\" " <<
-                (int)cur_dep.version.major << "." << (int)cur_dep.version.minor << "." << (int)cur_dep.version.patch << ", got " <<
-                (int)dep_mod.manifest.version.major << "." << (int)dep_mod.manifest.version.minor << "." << (int)dep_mod.manifest.version.patch << "";
-            errors.emplace_back(ModLoadError::WrongDependencyVersion, error_param_stream.str());
+                // Prevent the dependency from being toggled at runtime, as it's required for this mod.
+                dep_mod.disable_runtime_toggle();
+            }
+            // Add an error for this mod if the dependency isn't optional.
+            else {
+                errors.emplace_back(ModLoadError::MissingDependency, cur_dep.mod_id);
+            }
         }
-
-        // Prevent the dependency from being toggled at runtime, as it's required for this mod.
-        dep_mod.disable_runtime_toggle();
     }
 }
 
@@ -2093,16 +2242,28 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::init_mod_code(uint8_t* 
     int32_t cur_section_addr = load_address;
     for (size_t section_index = 0; section_index < mod_sections.size(); section_index++) {
         const auto& section = mod_sections[section_index];
-        for (size_t i = 0; i < section.size; i++) {
-            MEM_B(i, (gpr)cur_section_addr) = binary_data[section.rom_addr + i];
+        // Do not load fixed address sections into mod memory. Use their address as-is.
+        if (section.fixed_address) {
+            mod.section_load_addresses[section_index] = section.ram_addr;
         }
-        mod.section_load_addresses[section_index] = cur_section_addr;
-        // Calculate the next section's address based on the size of this section and its bss.
-        cur_section_addr += section.size + section.bss_size;
-        // Align the next section's address to 16 bytes.
-        cur_section_addr = (cur_section_addr + 15) & ~15;
-        // Add some empty space between mods to act as a buffer for misbehaving mods that have out of bounds accesses.
-        cur_section_addr += 0x400;
+        else {
+            for (size_t i = 0; i < section.size; i++) {
+                MEM_B(i, (gpr)cur_section_addr) = binary_data[section.rom_addr + i];
+            }
+            mod.section_load_addresses[section_index] = cur_section_addr;
+            // Calculate the bss section's address based on the size of this section.
+            cur_section_addr += section.size;
+            // Zero the bss section.
+            for (size_t i = 0; i < section.bss_size; i++) {
+                MEM_B(i, (gpr)cur_section_addr) = 0;
+            }
+            // Calculate the next section's address based on the size of the bss section.
+            cur_section_addr += section.bss_size;
+            // Align the next section's address to 16 bytes.
+            cur_section_addr = (cur_section_addr + 15) & ~15;
+            // Add some empty space between mods to act as a buffer for misbehaving mods that have out of bounds accesses.
+            cur_section_addr += 0x400;
+        }
     }
 
     // Iterate over each section again after loading them to perform R_MIPS_32 relocations.
@@ -2165,7 +2326,7 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* 
     std::unordered_map<size_t, size_t> entry_func_hooks{};
     std::unordered_map<size_t, size_t> return_func_hooks{};
 
-    // Scan the replacements and check for any 
+    // Scan the replacements to handle hooks on the replaced functions.
     for (const auto& replacement : mod.recompiler_context->replacements) {
         // Check if there's a hook slot for the entry of this function.
         HookDefinition entry_def {
@@ -2324,14 +2485,24 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::resolve_code_dependenci
         }
         else {
             auto find_mod_it = loaded_mods_by_id.find(dependency_id);
-            if (find_mod_it == loaded_mods_by_id.end()) {
-                error_param = "Failed to find import dependency while loading code: " + dependency_id;
-                // This should never happen, as dependencies are scanned before mod code is loaded and the symbol dependency list
-                // is validated against the manifest's. 
-                return CodeModLoadError::InternalError;
+            if (find_mod_it != loaded_mods_by_id.end()) {
+                const auto& dependency = opened_mods[find_mod_it->second];
+                did_find_func = dependency.get_export_function(imported_func.base.name, func_handle);
             }
-            const auto& dependency = opened_mods[find_mod_it->second];
-            did_find_func = dependency.get_export_function(imported_func.base.name, func_handle);
+            else {
+                auto find_optional_it = mod.manifest.dependencies_by_id.find(dependency_id);
+                if (find_optional_it != mod.manifest.dependencies_by_id.end()) {
+                    uintptr_t shim_argument = ((import_index & 0xFFFFFFFFu) << 32) | (mod_index & 0xFFFFFFFFu);
+                    func_handle = shim_functions.emplace_back(std::make_unique<N64Recomp::ShimFunction>(unmet_dependency_handler, shim_argument)).get()->get_func();
+                    did_find_func = true;
+                }
+                else {
+                    error_param = "Failed to find import dependency while loading code: " + dependency_id;
+                    // This should never happen, as dependencies are scanned before mod code is loaded and the symbol dependency list
+                    // is validated against the manifest's. 
+                    return CodeModLoadError::InternalError;
+                }
+            }
         }
 
         if (!did_find_func) {
@@ -2349,6 +2520,7 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::resolve_code_dependenci
         GenericFunction func = mod.code_handle->get_function_handle(callback.function_index);
         size_t event_index = 0;
         bool did_find_event = false;
+        bool optional = false;
 
         if (dependency_id == N64Recomp::DependencyBaseRecomp) {
             event_index = recomp::overlays::get_base_event_index(dependency_event.event_name);
@@ -2360,23 +2532,40 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::resolve_code_dependenci
             did_find_event = mod.get_global_event_index(dependency_event.event_name, event_index);
         }
         else {
+            // Check if the dependency is optional.
             auto find_mod_it = loaded_mods_by_id.find(dependency_id);
             if (find_mod_it == loaded_mods_by_id.end()) {
-                error_param = "Failed to find callback dependency while loading code: " + dependency_id;
-                // This should never happen, as dependencies are scanned before mod code is loaded and the symbol dependency list
-                // is validated against the manifest's. 
-                return CodeModLoadError::InternalError;
+                // Get the manifest's version of the dependency.
+                auto find_manifest_dep = mod.manifest.dependencies_by_id.find(dependency_id);
+                // This should always be found, but just in case validate that the find was successful.
+                // This will get treated as an error if it wasn't found in the manifest.
+                if (find_manifest_dep != mod.manifest.dependencies_by_id.end()) {
+                    const auto& manifest_dep = mod.manifest.dependencies[find_manifest_dep->second];
+                    if (manifest_dep.optional) {
+                        optional = true;
+                    }
+                }
+
+                if (!optional) {
+                    error_param = "Failed to find callback dependency while loading code: " + dependency_id;
+                    // This should never happen, as dependencies are scanned before mod code is loaded and the symbol dependency list
+                    // is validated against the manifest's. 
+                    return CodeModLoadError::InternalError;
+                }
             }
-            const auto& dependency_mod = opened_mods[find_mod_it->second];
-            did_find_event = dependency_mod.get_global_event_index(dependency_event.event_name, event_index);
+            else {
+                const auto& dependency_mod = opened_mods[find_mod_it->second];
+                did_find_event = dependency_mod.get_global_event_index(dependency_event.event_name, event_index);
+            }
         }
 
-        if (!did_find_event) {
+        if (did_find_event) {
+            recomp::mods::register_event_callback(event_index, mod_index, func);
+        }
+        else if (!optional) {
             error_param = dependency_id + ":" + dependency_event.event_name;
             return CodeModLoadError::InvalidCallbackEvent;
         }
-
-        recomp::mods::register_event_callback(event_index, func);
     }
 
     // Register hooks.
@@ -2398,7 +2587,7 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::resolve_code_dependenci
 
         // Register the function handle for this hook slot.
         GenericFunction func = mod.code_handle->get_function_handle(cur_hook.func_index);
-        recomp::mods::register_hook(find_it->second, func);
+        recomp::mods::register_hook(find_it->second, mod_index, func);
     }
 
     // Populate the relocated section addresses for the mod.
@@ -2464,4 +2653,19 @@ void recomp::mods::ModContext::unload_mods() {
     recomp::mods::reset_hooks();
     num_events = recomp::overlays::num_base_events();
     active_game = (size_t)-1;
+}
+
+void recomp::mods::unmet_dependency_handler(uint8_t* rdram, recomp_context* ctx, uintptr_t arg) {
+    size_t caller_mod_index = (arg >>  0) & uint64_t(0xFFFFFFFF);
+    size_t import_index =     (arg >> 32) & uint64_t(0xFFFFFFFF);
+
+    std::string mod_name = recomp::mods::get_mod_display_name(caller_mod_index);
+    std::pair<std::string, std::string> import_info = recomp::mods::get_mod_import_info(caller_mod_index, import_index);
+    
+    ultramodern::error_handling::message_box(
+        (
+            "Fatal error in mod \"" + mod_name + "\": Called function \"" + import_info.second + "\" in unmet optional dependency \"" + import_info.first + "\".\n"
+        ).c_str()
+    );
+    ULTRAMODERN_QUICK_EXIT();
 }

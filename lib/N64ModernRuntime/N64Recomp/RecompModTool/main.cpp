@@ -32,9 +32,12 @@ struct ModManifest {
     std::string game_id;
     std::string minimum_recomp_version;
     std::unordered_map<std::string, std::vector<std::string>> native_libraries;
+    bool custom_gamemode = false;
     std::vector<toml::table> config_options;
     std::vector<std::string> dependencies;
     std::vector<std::string> full_dependency_strings;
+    std::vector<std::string> optional_dependencies;
+    std::vector<std::string> full_optional_dependency_strings;
 };
 
 struct ModInputs {
@@ -323,6 +326,31 @@ ModManifest parse_mod_config_manifest(const std::filesystem::path& basedir, cons
         });
     }
 
+    // Optional dependency list (optional)
+    const toml::array& optional_dependency_array = read_toml_array(manifest_table, "optional_dependencies", false);
+    if (!optional_dependency_array.empty()) {
+        // Reserve room for all the dependencies.
+        ret.dependencies.reserve(optional_dependency_array.size());
+        optional_dependency_array.for_each([&ret](const auto& el) {
+            if constexpr (toml::is_string<decltype(el)>) {
+                size_t dependency_id_length;
+                bool dependency_version_has_label;
+                if (!validate_dependency_string(el.template ref<std::string>(), dependency_id_length, dependency_version_has_label)) {
+                    throw toml::parse_error("Invalid optional dependency entry", el.source());
+                }
+                if (dependency_version_has_label) {
+                    throw toml::parse_error("Dependency versions may not have labels", el.source());
+                }
+                std::string dependency_id = el.template ref<std::string>().substr(0, dependency_id_length);
+                ret.optional_dependencies.emplace_back(dependency_id);
+                ret.full_optional_dependency_strings.emplace_back(el.template ref<std::string>());
+            }
+            else {
+                throw toml::parse_error("Invalid type for optional dependency entry", el.source());
+            }
+        });
+    }
+
     // Config schema (optional)
     const toml::array& config_options_array = read_toml_array(manifest_table, "config_options", false);
     if (!config_options_array.empty()) {
@@ -339,6 +367,9 @@ ModManifest parse_mod_config_manifest(const std::filesystem::path& basedir, cons
             }
         });
     }
+
+    // Custom gamemode (optional)
+    ret.custom_gamemode = read_toml_value<bool>(manifest_table, "custom_gamemode", false);
 
     return ret;
 }
@@ -507,12 +538,20 @@ void write_manifest(const std::filesystem::path& path, const ModManifest& manife
         output_data.emplace("dependencies", string_vector_to_toml(manifest.full_dependency_strings));
     }
 
+    if (!manifest.full_optional_dependency_strings.empty()) {
+        output_data.emplace("optional_dependencies", string_vector_to_toml(manifest.full_optional_dependency_strings));
+    }
+
     if (!manifest.config_options.empty()) {
         toml::array options_array{};
         for (const auto& option : manifest.config_options) {
             options_array.emplace_back(option);
         }
         output_data.emplace("config_schema", toml::table{{"options", std::move(options_array)}});
+    }
+
+    if (manifest.custom_gamemode) {
+        output_data.emplace("custom_gamemode", manifest.custom_gamemode);
     }
 
     toml::json_formatter formatter{output_data, toml::format_flags::indentation | toml::format_flags::indentation};
@@ -974,11 +1013,11 @@ bool create_mod_zip(const std::filesystem::path& output_dir, const ModConfig& co
 #ifdef _WIN32
     std::filesystem::path temp_zip_path = output_path;
     temp_zip_path.replace_extension(".zip");
-    std::string command_string = fmt::format("powershell -command Compress-Archive -Force -CompressionLevel Optimal -DestinationPath \"{}\" -Path \"{}\",\"{}\",\"{}\"",
+    std::string command_string = fmt::format("powershell -command Compress-Archive -Force -CompressionLevel Optimal -DestinationPath '{}' -Path '{}','{}','{}'",
         temp_zip_path.string(), (output_dir / symbol_filename).string(), (output_dir / binary_filename).string(), (output_dir / manifest_filename).string());
 
     for (const auto& cur_file : config.inputs.additional_files) {
-        command_string += fmt::format(",\"{}\"", cur_file.string());
+        command_string += fmt::format(",'{}'", cur_file.string());
     }
 
     STARTUPINFOA si{};
@@ -1138,8 +1177,9 @@ int main(int argc, const char** argv) {
         }
     }
 
-    // Copy the dependencies from the config into the context.
+    // Copy the dependencies and optional dependencies from the config into the context.
     context.add_dependencies(config.manifest.dependencies);
+    context.add_dependencies(config.manifest.optional_dependencies);
 
     N64Recomp::ElfParsingConfig elf_config {
         .bss_section_suffix = {},
@@ -1149,7 +1189,8 @@ int main(int argc, const char** argv) {
         .entrypoint_address = 0,
         .use_absolute_symbols = false,
         .unpaired_lo16_warnings = false,
-        .all_sections_relocatable = true
+        .all_sections_relocatable = true,
+        .use_mdebug = false,
     };
     bool dummy_found_entrypoint;
     N64Recomp::DataSymbolMap dummy_syms_map;

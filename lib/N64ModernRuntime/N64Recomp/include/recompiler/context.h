@@ -104,6 +104,8 @@ namespace N64Recomp {
         bool executable = false;
         bool relocatable = false; // TODO is this needed? relocs being non-empty should be an equivalent check.
         bool has_mips32_relocs = false;
+        bool fixed_address = false; // Only used in mods, indicates that the section shouldn't be relocated or placed into mod memory.
+        bool globally_loaded = false; // Only used in mods, indicates that the section's functions should be globally loaded. Does not actually load the section's contents into ram.
         std::optional<uint32_t> got_ram_addr = std::nullopt;
     };
 
@@ -127,11 +129,19 @@ namespace N64Recomp {
         std::unordered_map<std::string, size_t> manually_sized_funcs;
         // The section names that were specified as relocatable
         std::unordered_set<std::string> relocatable_sections;
+        // Symbols to ignore.
+        std::unordered_set<std::string> ignored_syms;
+        // Manual mappings of mdebug file records to elf sections.
+        std::unordered_map<std::string, std::string> mdebug_text_map;
+        std::unordered_map<std::string, std::string> mdebug_data_map;
+        std::unordered_map<std::string, std::string> mdebug_rodata_map;
+        std::unordered_map<std::string, std::string> mdebug_bss_map;
         bool has_entrypoint;
         int32_t entrypoint_address;
         bool use_absolute_symbols;
         bool unpaired_lo16_warnings;
         bool all_sections_relocatable;
+        bool use_mdebug;
     };
     
     struct DataSymbol {
@@ -233,6 +243,8 @@ namespace N64Recomp {
         //// Mod dependencies and their symbols
         
         //// Imported values
+        // Dependency names.
+        std::vector<std::string> dependencies;
         // Mapping of dependency name to dependency index.
         std::unordered_map<std::string, size_t> dependencies_by_name;
         // List of symbols imported from dependencies.
@@ -276,6 +288,7 @@ namespace N64Recomp {
 
             size_t dependency_index = dependencies_by_name.size();
 
+            dependencies.emplace_back(id);
             dependencies_by_name.emplace(id, dependency_index);
             dependency_events_by_name.resize(dependencies_by_name.size());
             dependency_imports_by_name.resize(dependencies_by_name.size());
@@ -295,6 +308,7 @@ namespace N64Recomp {
 
             for (const std::string& dep : new_dependencies) {
                 size_t dependency_index = dependencies_by_name.size();
+                dependencies.emplace_back(dep);
                 dependencies_by_name.emplace(dep, dependency_index);
             }
 
@@ -386,7 +400,7 @@ namespace N64Recomp {
             return reference_symbols[symbol_index];
         }
 
-        size_t num_regular_reference_symbols() {
+        size_t num_regular_reference_symbols() const {
             return reference_symbols.size();
         }
 
@@ -558,6 +572,10 @@ namespace N64Recomp {
             }
         }
 
+        size_t num_reference_sections() const {
+            return reference_sections.size();
+        }
+
         void copy_reference_sections_from(const Context& rhs) {
             reference_sections = rhs.reference_sections;
         }
@@ -566,6 +584,9 @@ namespace N64Recomp {
             all_reference_sections_relocatable = true;
         }
 
+        void add_reference_section(const ReferenceSection& sec) {
+            reference_sections.emplace_back(sec);
+        }
     };
 
     class Generator;

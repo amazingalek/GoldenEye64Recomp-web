@@ -22,7 +22,7 @@ MIPS_LD="${MIPS_LD:-ld.lld}"
 # LLVM's lld-link rather than Visual Studio's link.exe: in Git Bash, /usr/bin/link (coreutils) comes first on
 # PATH, and CMake can pick that up as the linker.
 WIN_LINKER="${WIN_LINKER:-lld-link}"
-# CMake 4.x compat for old third-party cmake_minimum_required declarations (lunasvg and others).
+# CMake 4.x compat for old third-party cmake_minimum_required declarations.
 export CMAKE_POLICY_VERSION_MINIMUM=3.5
 
 echo "== [1/4] Checking dependencies"
@@ -88,10 +88,11 @@ if [ ! -f rsp/aspMain.cpp ]; then
 fi
 
 # The patches build needs the decompilation's headers (lib/ge submodule), and the program
-# needs FreeType's Windows binaries (lib/freetype-windows-binaries submodule).
-if [ ! -f lib/ge/include/PR/ultratypes.h ] || [ ! -f lib/freetype-windows-binaries/include/ft2build.h ]; then
+# needs FreeType's Windows binaries (RecompFrontend's freetype-windows-binaries submodule).
+FREETYPE_DIR=lib/RecompFrontend/recompui/lib/freetype-windows-binaries
+if [ ! -f lib/ge/include/PR/ultratypes.h ] || [ ! -f $FREETYPE_DIR/include/ft2build.h ]; then
     echo "Fetching submodules ..."
-    git submodule update --init lib/ge lib/freetype-windows-binaries
+    git submodule update --init lib/ge $FREETYPE_DIR
 fi
 
 echo "== [3/4] Configuring"
