@@ -7,11 +7,11 @@ memory (`src/main/rom_conversion.cpp`).
 ## 1. Clone with the submodules
 
 ```bash
-git clone --recurse-submodules https://github.com/amazingalek/GoldenEye64Recomp-web
+git clone --recurse-submodules https://github.com/n64hub/GoldenEye64Recomp-web
 ```
 
 `lib/` holds RT64, N64ModernRuntime (with N64Recomp) and RecompFrontend from their upstream repositories, at the
-commits [N64Recomp-browser](https://github.com/amazingalek/N64Recomp-browser)'s web forks are built on (GoldenEye64Recomp
+commits [N64Recomp-browser](https://github.com/n64hub/N64Recomp-browser)'s web forks are built on (GoldenEye64Recomp
 itself predates RecompFrontend, so it pins none of its own); N64Recomp-browser, whose `patches/` puts the web support
 and the recompiler changes this game needs into their checkouts and whose `frontend/` makes the page; and the
 GoldenEye decompilation (`lib/ge`, whose headers the patches use).

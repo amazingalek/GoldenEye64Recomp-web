@@ -1,11 +1,11 @@
 # GoldenEye 007: Recompiled, on the web
 
 > [!WARNING]
-> **This is amazingalek/GoldenEye64Recomp-web, a fork, not GoldenEye64Recomp or GoldenRecomp.** Its `main` branch is
+> **This is n64hub/GoldenEye64Recomp-web, a fork, not GoldenEye64Recomp or GoldenRecomp.** Its `main` branch is
 > cblock85's [GoldenEye64Recomp](https://github.com/cblock85/GoldenEye64Recomp), as podulator's
 > [fork of it](https://github.com/podulator/GoldenEye64Recomp) carries it on, moved onto
 > [RecompFrontend](https://github.com/N64Recomp/RecompFrontend) and built into a web page (WebGPU, through
-> [N64Recomp-browser](https://github.com/amazingalek/N64Recomp-browser)), and everything on it past cblock85's and
+> [N64Recomp-browser](https://github.com/n64hub/N64Recomp-browser)), and everything on it past cblock85's and
 > podulator's commits was written by AI (Claude). It is not made, endorsed or supported by GoldenEye64Recomp's or
 > GoldenRecomp's authors, and please don't take issues with this fork to them. Only fixes for bugs the desktop build
 > has too, the keyboard and mouse and a Windows build are offered upstream, to podulator's, each a pull request of its
@@ -15,7 +15,7 @@
 > This port is here to build out and test N64Recomp-browser's web support on another game than the one it was written
 > for: what it turns up is fixed there where it can be, so every recomp's page gets the fix.
 
-**Play it in the browser: https://amazingalek.github.io/GoldenEye64Recomp-web/**, with your own ROM, picked in the
+**Play it in the browser: https://n64hub.com/goldeneye/**, with your own ROM, picked in the
 launcher and kept in the browser. It needs WebGPU (Chrome or Edge 113 and up). The page is built from this branch
 and published with N64Recomp-browser's `tools/publish_page.sh`, so it can be a commit or two behind.
 
@@ -44,8 +44,8 @@ ROM you load, so the launcher takes the retail dump as it is.
 - The page: the launcher, Load ROM with the retail dump, the intro and its credits, the menus, and Dam walked on the
   keyboard, at the game's 60 retraces a second, with sound on the browser's audio thread. No real gamepad tried. How
   it plays, in which browser and on what graphics, is recorded in N64Recomp-browser's
-  [plays.jsonl](https://github.com/amazingalek/N64Recomp-browser/blob/main/plays.jsonl) and its
-  [games table](https://github.com/amazingalek/N64Recomp-browser#games).
+  [plays.jsonl](https://github.com/n64hub/N64Recomp-browser/blob/main/plays.jsonl) and its
+  [games table](https://github.com/n64hub/N64Recomp-browser#games).
 - A steady 960 frames a second of the sound, about 2%, came up short in both browsers and natively: the game's audio
   manager made every buffer its minimum (`get_frames_remaining` in `src/main/main.cpp` says why). Since main 59dc8e8 it
   writes 48,000 frames a second and plays without a gap between the boot's shader wait and its first burst: on a
@@ -102,7 +102,7 @@ ROM you load, so the launcher takes the retail dump as it is.
   retraces (~0.6 s), then, with no save yet, `fileValidateSaves` resetting and writing every save to the EEPROM, 48
   EEPROM calls each between `joyDisablePoll` and `joyEnablePoll`, which wait a retrace for the controller thread
   (~0.77 s). A second visit has the save and waits 1.05 s (headless Chrome 155, 3840x2000, RTX 2070; N64Recomp-browser's
-  [docs/findings.md](https://github.com/amazingalek/N64Recomp-browser/blob/main/docs/findings.md), Present gaps after
+  [docs/findings.md](https://github.com/n64hub/N64Recomp-browser/blob/main/docs/findings.md), Present gaps after
   Start).
 - Mods a player adds are off on the web (there is no recompiler that emits WebAssembly at run time); natively they
   are supported but untested.
