@@ -67,7 +67,6 @@ void recomp::do_rom_read(uint8_t* rdram, gpr ram_address, uint32_t physical_addr
     // TODO handle misaligned DMA
     assert((physical_addr & 0x1) == 0 && "Only PI DMA from aligned ROM addresses is currently supported");
     assert((ram_address & 0x7) == 0 && "Only PI DMA to aligned RDRAM addresses is currently supported");
-    assert((num_bytes & 0x1) == 0 && "Only PI DMA with aligned sizes is currently supported");
     uint8_t* rom_addr = rom.data() + physical_addr - recomp::rom_base;
     for (size_t i = 0; i < num_bytes; i++) {
         MEM_B(i, ram_address) = *rom_addr;
@@ -276,7 +275,7 @@ void do_dma(RDRAM_ARG PTR(OSMesgQueue) mq, gpr rdram_address, uint32_t physical_
             recomp::do_rom_read(rdram, rdram_address, physical_addr, size);
 
             // Send a message to the mq to indicate that the transfer completed
-            osSendMesg(rdram, mq, 0, OS_MESG_NOBLOCK);
+            ultramodern::enqueue_external_message_src(mq, 0, false, ultramodern::EventMessageSource::Pi);
         } else if (physical_addr >= recomp::sram_base) {
             if (!recomp::sram_allowed()) {
                 ultramodern::error_handling::message_box("Attempted to use SRAM saving with other save type");
@@ -286,7 +285,7 @@ void do_dma(RDRAM_ARG PTR(OSMesgQueue) mq, gpr rdram_address, uint32_t physical_
             save_read(rdram, rdram_address, physical_addr - recomp::sram_base, size);
 
             // Send a message to the mq to indicate that the transfer completed
-            osSendMesg(rdram, mq, 0, OS_MESG_NOBLOCK);
+            ultramodern::enqueue_external_message_src(mq, 0, false, ultramodern::EventMessageSource::Pi);
         } else {
             fprintf(stderr, "[WARN] PI DMA read from unknown region, phys address 0x%08X\n", physical_addr);
         }
@@ -303,7 +302,7 @@ void do_dma(RDRAM_ARG PTR(OSMesgQueue) mq, gpr rdram_address, uint32_t physical_
             save_write(rdram, rdram_address, physical_addr - recomp::sram_base, size);
 
             // Send a message to the mq to indicate that the transfer completed
-            osSendMesg(rdram, mq, 0, OS_MESG_NOBLOCK);
+            ultramodern::enqueue_external_message_src(mq, 0, false, ultramodern::EventMessageSource::Pi);
         } else {
             fprintf(stderr, "[WARN] PI DMA write to unknown region, phys address 0x%08X\n", physical_addr);
         }

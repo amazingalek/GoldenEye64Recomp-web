@@ -13,6 +13,15 @@
 #include "ultramodern/ultra64.h"
 #include "ultramodern/ultramodern.hpp"
 #define SDL_MAIN_HANDLED
+// RecompFrontend before SDL: on Linux SDL_syswm.h brings in X11, whose macros (None, Bool) break RmlUi's headers.
+#include "recompui/recompui.h"
+#include "recompui/program_config.h"
+#include "recompui/renderer.h"
+#include "recompui/config.h"
+#include "util/file.h"
+#include "recompinput/recompinput.h"
+#include "recompinput/input_events.h"
+#include "recompinput/profiles.h"
 #ifdef _WIN32
 #include "SDL.h"
 #else
@@ -22,12 +31,13 @@
 #include "SDL2/SDL_metal.h"
 #endif
 #endif
+#if defined(__linux__)
+// X11's None (from SDL_syswm.h) would replace ultramodern's Device::None and Pak::None below.
+#undef None
+#endif
 
-#include "recomp_ui.h"
-#include "recomp_input.h"
 #include "zelda_config.h"
 #include "zelda_sound.h"
-#include "zelda_render.h"
 #include "ovl_patches.hpp"
 #include "librecomp/game.hpp"
 
@@ -61,15 +71,16 @@ ultramodern::gfx_callbacks_t::gfx_data_t create_gfx() {
     SDL_SetHint(SDL_HINT_VIDEODRIVER, "x11");
 #endif
 
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) > 0) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_JOYSTICK | SDL_INIT_HAPTIC) < 0) {
         exit_error("Failed to initialize SDL2: %s\n", SDL_GetError());
     }
 
     return {};
 }
 
-#if defined(__gnu_linux__)
 #include "icon_bytes.h"
+
+#if defined(__gnu_linux__)
 
 bool SetImageAsIcon(const char* filename, SDL_Window* window)
 {
@@ -120,7 +131,13 @@ bool SetImageAsIcon(const char* filename, SDL_Window* window)
 SDL_Window* window; // RESOLUTION
 
 ultramodern::renderer::WindowHandle create_window(ultramodern::gfx_callbacks_t::gfx_data_t) {
-    window = SDL_CreateWindow("Goldeneye 007: Recompiled", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1600, 900, SDL_WINDOW_RESIZABLE );
+    uint32_t flags = SDL_WINDOW_RESIZABLE;
+#if defined(__APPLE__)
+    flags |= SDL_WINDOW_METAL;
+#elif defined(RT64_SDL_WINDOW_VULKAN)
+    flags |= SDL_WINDOW_VULKAN;
+#endif
+    window = SDL_CreateWindow(std::string{ zelda64::program_name }.c_str(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1600, 900, flags);
 #if defined(__linux__)
     SetImageAsIcon("icons/512.png",window);
     if (ultramodern::renderer::get_graphics_config().wm_option == ultramodern::renderer::WindowMode::Fullscreen) { // TODO: Remove once RT64 gets native fullscreen support on Linux
@@ -164,7 +181,7 @@ ultramodern::renderer::WindowHandle create_window(ultramodern::gfx_callbacks_t::
 }
 
 void update_gfx(void*) {
-    recomp::handle_events();
+    recompinput::handle_events();
 }
 
 static SDL_AudioCVT audio_convert;
@@ -337,21 +354,41 @@ extern "C" void recomp_entrypoint(uint8_t * rdram, recomp_context * ctx);
 gpr get_entrypoint_address();
 
 namespace zelda64 {
-    void register_rom_conversion(); // rom_conversion.cpp
+    void init_theme(); // launcher.cpp
+    void init_launcher();
 }
 
 // array of supported GameEntry objects
 std::vector<recomp::GameEntry> supported_games = {
     {
-        .rom_hash = 0xd49fb2a8d6d3bd65, // tblfree (rebuilt from 100% decomp)
+        // The retail NTSC-U dump the player selects, stored as it is; when the game starts, on_init_callback converts
+        // it into the TLBFREE ROM (rebuilt from 100% decomp) the code was recompiled from (rom_conversion.cpp).
+        .rom_hash = 0x639ece0bc88c6e4a,
         .internal_name = "GOLDENEYE",
+        .display_name = "Goldeneye 007",
         .game_id = u8"ge007.us",
         .save_type = recomp::SaveType::Eep4k,
+        .thumbnail_bytes = std::span<const char>(icon_bytes),
         .is_enabled = true,
         .entrypoint_address = get_entrypoint_address(),
         .entrypoint = recomp_entrypoint,
+        .on_init_callback = zelda64::convert_rom,
     },
 };
+
+ultramodern::input::connected_device_info_t get_connected_device_info(int controller_num) {
+    if (recompinput::players::is_single_player_mode() || recompinput::players::get_player_is_assigned(controller_num)) {
+        return ultramodern::input::connected_device_info_t{
+            .connected_device = ultramodern::input::Device::Controller,
+            .connected_pak = ultramodern::input::Pak::RumblePak,
+        };
+    }
+
+    return ultramodern::input::connected_device_info_t{
+        .connected_device = ultramodern::input::Device::None,
+        .connected_pak = ultramodern::input::Pak::None,
+    };
+}
 
 // TODO: move somewhere else
 namespace zelda64 {
@@ -612,26 +649,40 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Failed to load controller mappings: %s\n", SDL_GetError());
     }
 
+    recompui::programconfig::set_program_name(std::string{ zelda64::program_name });
+    recompui::programconfig::set_program_id(std::u8string{ zelda64::program_id });
+
+    recompui::register_primary_font("ChiaroNormal.otf", "Chiaro");
+    recompui::register_extra_font("ChiaroBold.otf");
+
+    recomp::register_config_path(recompui::file::get_app_folder_path());
+
     // Register supported games and patches
     for (const auto& game : supported_games) {
         recomp::register_game(game);
     }
 
-    // Allow selecting an unconverted retail NTSC-U ROM (converted in-app).
-    zelda64::register_rom_conversion();
-
     zelda64::register_overlays();
     zelda64::register_patches();
 
-    recomp::register_config_path(zelda64::get_app_folder_path());
-    zelda64::load_config();
+    recompinput::players::set_single_player_mode(true);
+
+    // The default bindings come first: the settings load the saved ones over them.
+    zelda64::init_input();
+    zelda64::init_config();
+
+    zelda64::init_theme();
+    zelda64::init_launcher();
 
     recomp::rsp::callbacks_t rsp_callbacks{
         .get_rsp_microcode = get_rsp_microcode,
     };
 
     ultramodern::renderer::callbacks_t renderer_callbacks{
-        .create_render_context = zelda64::renderer::create_render_context,
+        .create_render_context = [](uint8_t* rdram, ultramodern::renderer::WindowHandle window_handle, bool developer_mode) {
+            // Present early, for minimal latency.
+            return recompui::renderer::create_render_context(rdram, window_handle, ultramodern::renderer::PresentationMode::PresentEarly, developer_mode);
+        },
     };
 
     ultramodern::gfx_callbacks_t gfx_callbacks{
@@ -647,15 +698,15 @@ int main(int argc, char** argv) {
     };
 
     ultramodern::input::callbacks_t input_callbacks{
-        .poll_input = recomp::poll_inputs,
-        .get_input = recomp::get_n64_input,
-        .set_rumble = recomp::set_rumble,
-        .get_connected_device_info = recomp::get_connected_device_info,
+        .poll_input = recompinput::poll_inputs,
+        .get_input = zelda64::get_n64_input,
+        .set_rumble = recompinput::set_rumble,
+        .get_connected_device_info = get_connected_device_info,
     };
 
     ultramodern::events::callbacks_t thread_callbacks{
-        .vi_callback = recomp::update_rumble,
-        .gfx_init_callback = recompui::update_supported_options,
+        .vi_callback = recompinput::update_rumble,
+        .gfx_init_callback = nullptr,
     };
 
     ultramodern::error_handling::callbacks_t error_handling_callbacks{
@@ -666,18 +717,19 @@ int main(int argc, char** argv) {
         .get_game_thread_name = zelda64::get_game_thread_name,
     };
 
-    recomp::start(
-        project_version,
-        {},
-        rsp_callbacks,
-        renderer_callbacks,
-        audio_callbacks,
-        input_callbacks,
-        gfx_callbacks,
-        thread_callbacks,
-        error_handling_callbacks,
-        threads_callbacks
-    );
+    recomp::Configuration cfg;
+    cfg.project_version = project_version;
+    cfg.rsp_callbacks = rsp_callbacks;
+    cfg.renderer_callbacks = renderer_callbacks;
+    cfg.audio_callbacks = audio_callbacks;
+    cfg.input_callbacks = input_callbacks;
+    cfg.gfx_callbacks = gfx_callbacks;
+    cfg.events_callbacks = thread_callbacks;
+    cfg.error_handling_callbacks = error_handling_callbacks;
+    cfg.threads_callbacks = threads_callbacks;
+    // message_queue_control keeps its defaults: an SP or DP task's completion that arrives while the game's scheduler
+    // queue is full is delivered once there is room instead of dropped, which GoldenEye's scheduler waits for.
+    recomp::start(cfg);
 
     NFD_Quit();
 

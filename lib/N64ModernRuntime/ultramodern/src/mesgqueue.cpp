@@ -1,6 +1,6 @@
+#include <bitset>
 #include <thread>
 
-#include <deque>
 #include "blockingconcurrentqueue.h"
 
 #include "ultramodern/ultra64.h"
@@ -10,67 +10,61 @@ struct QueuedMessage {
     PTR(OSMesgQueue) mq;
     OSMesg mesg;
     bool jam;
+    bool requeue_if_blocked;
 };
 
 static moodycamel::BlockingConcurrentQueue<QueuedMessage> external_messages {};
+std::bitset<32> requeue_enabled;
 
-void enqueue_external_message(PTR(OSMesgQueue) mq, OSMesg msg, bool jam) {
-    external_messages.enqueue({mq, msg, jam});
+void ultramodern::set_message_queue_control(const ultramodern::MessageQueueControl& mqc) {
+    requeue_enabled.reset();
+    requeue_enabled.set(static_cast<int>(EventMessageSource::Timer), mqc.requeue_timer);
+    requeue_enabled.set(static_cast<int>(EventMessageSource::Sp), mqc.requeue_sp);
+    requeue_enabled.set(static_cast<int>(EventMessageSource::Si), mqc.requeue_si);
+    requeue_enabled.set(static_cast<int>(EventMessageSource::Ai), mqc.requeue_ai);
+    requeue_enabled.set(static_cast<int>(EventMessageSource::Vi), mqc.requeue_vi);
+    requeue_enabled.set(static_cast<int>(EventMessageSource::Pi), mqc.requeue_pi);
+    requeue_enabled.set(static_cast<int>(EventMessageSource::Dp), mqc.requeue_dp);
+}
+
+void ultramodern::enqueue_external_message_src(PTR(OSMesgQueue) mq, OSMesg msg, bool jam, EventMessageSource src) {
+    external_messages.enqueue({mq, msg, jam, requeue_enabled[static_cast<int>(src)]});
+}
+
+void ultramodern::enqueue_external_message(PTR(OSMesgQueue) mq, OSMesg msg, bool jam, bool requeue_if_blocked) {
+    external_messages.enqueue({mq, msg, jam, requeue_if_blocked});
 }
 
 bool do_send(RDRAM_ARG PTR(OSMesgQueue) mq_, OSMesg msg, bool jam, bool block);
 
-// Messages from external (non-game) threads that could not be delivered yet because their
-// target queue was full. Only touched from the currently-running game thread, so no lock is
-// needed. Dropping these instead (the old behavior) wedges games whose schedulers cannot
-// tolerate losing an SP/DP-done message (e.g. GoldenEye) when a slow renderer lets the
-// scheduler's interrupt queue fill up with retrace messages.
-static std::deque<QueuedMessage> pending_external_messages {};
-
-static void drain_external_into_pending() {
-    QueuedMessage m;
-    while (external_messages.try_dequeue(m)) {
-        pending_external_messages.push_back(m);
-    }
-}
-
-// Deliver pending external messages in order; stop at the first one whose target queue is full.
-static void flush_pending_external(RDRAM_ARG1) {
-    while (!pending_external_messages.empty()) {
-        QueuedMessage& m = pending_external_messages.front();
-        if (!do_send(PASS_RDRAM m.mq, m.mesg, m.jam, false)) {
-            break;
-        }
-        pending_external_messages.pop_front();
-    }
-}
-
 void dequeue_external_messages(RDRAM_ARG1) {
-    drain_external_into_pending();
-    flush_pending_external(PASS_RDRAM1);
+    QueuedMessage to_send;
+    std::vector<QueuedMessage> requeued_messages{};
+    while (external_messages.try_dequeue(to_send)) {
+        if (!do_send(PASS_RDRAM to_send.mq, to_send.mesg, to_send.jam, false) && to_send.requeue_if_blocked) {
+            requeued_messages.push_back(to_send);
+        }
+    }
+    for (QueuedMessage& cur_mesg : requeued_messages) {
+        external_messages.enqueue(cur_mesg);
+    }
 }
 
 void ultramodern::wait_for_external_message(RDRAM_ARG1) {
-    drain_external_into_pending();
-    if (pending_external_messages.empty()) {
-        QueuedMessage m;
-        external_messages.wait_dequeue(m);
-        pending_external_messages.push_back(m);
-        drain_external_into_pending();
+    QueuedMessage to_send;
+    external_messages.wait_dequeue(to_send);
+    if (!do_send(PASS_RDRAM to_send.mq, to_send.mesg, to_send.jam, false) && to_send.requeue_if_blocked) {
+        external_messages.enqueue(to_send);
     }
-    flush_pending_external(PASS_RDRAM1);
 }
 
-void ultramodern::wait_for_external_message_timed(RDRAM_ARG1, u32 millis) {
-    drain_external_into_pending();
-    if (pending_external_messages.empty()) {
-        QueuedMessage m;
-        if (external_messages.wait_dequeue_timed(m, std::chrono::milliseconds{millis})) {
-            pending_external_messages.push_back(m);
-            drain_external_into_pending();
+void ultramodern::wait_for_external_message_timed(RDRAM_ARG u32 millis) {
+    QueuedMessage to_send;
+    if (external_messages.wait_dequeue_timed(to_send, std::chrono::milliseconds{millis})) {
+        if (!do_send(PASS_RDRAM to_send.mq, to_send.mesg, to_send.jam, false) && to_send.requeue_if_blocked) {
+            external_messages.enqueue(to_send);
         }
     }
-    flush_pending_external(PASS_RDRAM1);
 }
 
 extern "C" void osCreateMesgQueue(RDRAM_ARG PTR(OSMesgQueue) mq_, PTR(OSMesg) msg, s32 count) {
@@ -172,7 +166,7 @@ extern "C" s32 osSendMesg(RDRAM_ARG PTR(OSMesgQueue) mq_, OSMesg msg, s32 flags)
     
     // Don't directly send to the message queue if this isn't a game thread to avoid contention.
     if (!ultramodern::is_game_thread()) {
-        enqueue_external_message(mq_, msg, jam);
+        ultramodern::enqueue_external_message(mq_, msg, jam, false);
         return 0;
     }
     
@@ -194,7 +188,7 @@ extern "C" s32 osJamMesg(RDRAM_ARG PTR(OSMesgQueue) mq_, OSMesg msg, s32 flags) 
     
     // Don't directly send to the message queue if this isn't a game thread to avoid contention.
     if (!ultramodern::is_game_thread()) {
-        enqueue_external_message(mq_, msg, jam);
+        ultramodern::enqueue_external_message(mq_, msg, jam, false);
         return 0;
     }
     

@@ -1,10 +1,10 @@
 #ifndef __PATCH_HELPERS_H__
 #define __PATCH_HELPERS_H__
 
-#if 1
+#ifdef MIPS
 #include "ultra64.h"
 #else
-#include "librecomp/recomp.h"
+#include "recomp.h"
 #endif
 
 #ifdef __cplusplus

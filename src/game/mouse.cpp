@@ -1,6 +1,6 @@
 // Keyboard and mouse, the program's side: patches/mouse.c is the game's, and says what it all does in the game.
-// input.cpp gathers the mouse's motion and wheel, and locks the pointer to the game while Mouse Sensitivity is above
-// zero; this adds what the patches ask for:
+// input.cpp gathers the mouse's motion and wheel (RecompFrontend locks the pointer to the game while Mouse Sensitivity
+// is above zero); this adds what the patches ask for:
 // - the mouse's buttons: left click fires (Z on the pad); right click aims, which the patches ask about, and in the
 //   game's menus, which the patches say are up, goes back (B on the pad);
 // - the actions GoldenEye has no N64 button for, which the patches perform: the Reload and Crouch inputs (R, and Left
@@ -18,7 +18,9 @@
 
 #include "recomp.h"
 #include "librecomp/helpers.hpp"
-#include "recomp_input.h"
+#include "recompinput/recompinput.h"
+#include "recompinput/input_state.h"
+#include "recompinput/profiles.h"
 #include "zelda_config.h"
 
 namespace {
@@ -50,11 +52,11 @@ bool crouch_was_held = false;
 bool driving_tank = false;
 
 bool game_has_mouse() {
-    return !recomp::game_input_disabled() && SDL_GetRelativeMouseMode() == SDL_TRUE;
+    return !recompinput::game_input_disabled() && SDL_GetRelativeMouseMode() == SDL_TRUE;
 }
 
 bool mouse_playing() {
-    return game_has_mouse() && recomp::mouse_in_use();
+    return game_has_mouse() && zelda64::mouse_in_use();
 }
 
 bool mouse_button_held(int button) {
@@ -66,13 +68,17 @@ bool menu_shown() {
     return std::chrono::steady_clock::now() - last_menu < stale_input;
 }
 
-bool input_held(recomp::GameInput input) {
-    if (recomp::game_input_disabled()) {
+bool input_held(recompinput::GameInput input) {
+    if (recompinput::game_input_disabled()) {
         return false;
     }
-    for (recomp::InputDevice device : { recomp::InputDevice::Keyboard, recomp::InputDevice::Controller }) {
-        for (size_t i = 0; i < recomp::bindings_per_input; i++) {
-            if (recomp::get_input_digital(recomp::get_input_binding(input, i, device))) {
+    for (int profile : { recompinput::profiles::get_sp_keyboard_profile_index(), recompinput::profiles::get_sp_controller_profile_index() }) {
+        if (profile < 0) {
+            continue;
+        }
+        for (size_t i = 0; i < recompinput::num_bindings_per_input; i++) {
+            const recompinput::InputField& binding = recompinput::profiles::get_input_binding(profile, input, i);
+            if (recompinput::get_input_digital(0, binding)) {
                 return true;
             }
         }
@@ -81,7 +87,7 @@ bool input_held(recomp::GameInput input) {
 }
 } // namespace
 
-void recomp::apply_mouse_input(uint16_t* buttons, float* x) {
+void zelda64::apply_mouse_input(uint16_t* buttons, float* x) {
     if (!game_has_mouse()) {
         return;
     }
@@ -97,7 +103,7 @@ void recomp::apply_mouse_input(uint16_t* buttons, float* x) {
         std::lock_guard lock{ mouse_mutex };
         tank = driving_tank;
     }
-    if (tank && recomp::mouse_in_use()) {
+    if (tank && zelda64::mouse_in_use()) {
         if (*buttons & n64_button_c_left) {
             *x -= 1.0f;
         }
@@ -111,9 +117,9 @@ void recomp::apply_mouse_input(uint16_t* buttons, float* x) {
 
 // This tick's presses: the Reload and Crouch inputs as they go down, and a notch of the wheel.
 extern "C" void recomp_get_mouse_actions(uint8_t* rdram, recomp_context* ctx) {
-    bool reload = input_held(recomp::GameInput::RELOAD);
-    bool crouch = input_held(recomp::GameInput::CROUCH);
-    int wheel = recomp::take_mouse_wheel();
+    bool reload = input_held(recompinput::GameInput::RELOAD);
+    bool crouch = input_held(recompinput::GameInput::CROUCH);
+    int wheel = zelda64::take_mouse_wheel();
     if (!game_has_mouse()) {
         wheel = 0;
     }
@@ -149,8 +155,7 @@ extern "C" void recomp_get_mouse_actions(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void recomp_get_mouse_invert_y(uint8_t* rdram, recomp_context* ctx) {
-    zelda64::CameraInvertMode mode = zelda64::get_mouse_invert_mode();
-    _return<s32>(ctx, mode == zelda64::CameraInvertMode::InvertY || mode == zelda64::CameraInvertMode::InvertBoth);
+    _return<s32>(ctx, zelda64::get_mouse_invert_y());
 }
 
 extern "C" void recomp_mouse_playing(uint8_t* rdram, recomp_context* ctx) {

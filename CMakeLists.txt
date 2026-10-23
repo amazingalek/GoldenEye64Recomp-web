@@ -5,6 +5,11 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# RecompFrontend builds Objective-C++ on Apple (recompui's support_apple.mm).
+if (APPLE)
+    enable_language(OBJC OBJCXX)
+endif()
+
 # Newer Apple clang, and LLVM's clang-cl on Windows, advertise __cpp_consteval but
 # reject fmt's consteval format-string checks; disable them so macOS and Windows
 # build cleanly (see the guard in lib/fmt/include/fmt/base.h).
@@ -38,11 +43,10 @@ endif()
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-if (WIN32)
-    set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/lib/")
-endif()
-
 set(RT64_STATIC TRUE)
+# RecompFrontend's renderer hands RT64 the SDL window, which RT64 takes on Linux with this (its Vulkan surface comes
+# from SDL).
+set(RT64_SDL_WINDOW_VULKAN TRUE)
 # RT64's bundled zstd adds /clang:-Wall under clang-cl, for warnings only; ccache won't cache a call with it.
 # Pre-answering zstd's flag check skips it.
 if (CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC" AND CMAKE_CXX_COMPILER_LAUNCHER MATCHES "ccache")
@@ -51,14 +55,7 @@ if (CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC" AND CMAKE_CXX_COMPILER_LAUNCHER MATCHE
 endif()
 add_subdirectory(${CMAKE_SOURCE_DIR}/lib/rt64 ${CMAKE_BINARY_DIR}/rt64)
 
-# set(BUILD_SHARED_LIBS_SAVED "${BUILD_SHARED_LIBS}")
 set(BUILD_SHARED_LIBS OFF)
-SET(LUNASVG_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-add_subdirectory(${CMAKE_SOURCE_DIR}/lib/lunasvg)
-# set(BUILD_SHARED_LIBS "${BUILD_SHARED_LIBS_SAVED}")
-SET(ENABLE_SVG_PLUGIN ON CACHE BOOL "" FORCE)
-SET(RMLUI_TESTS_ENABLED OFF CACHE BOOL "" FORCE)
-add_subdirectory(${CMAKE_SOURCE_DIR}/lib/RmlUi)
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime)
 
@@ -217,6 +214,12 @@ if (LIVE_GAMECODE)
     endif()
 endif()
 
+# The app icon, as the launcher's thumbnail for the game and the window's icon on Linux.
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/icon_bytes.c ${CMAKE_CURRENT_BINARY_DIR}/icon_bytes.h
+    COMMAND file_to_c ${CMAKE_SOURCE_DIR}/icons/512.png icon_bytes ${CMAKE_CURRENT_BINARY_DIR}/icon_bytes.c ${CMAKE_CURRENT_BINARY_DIR}/icon_bytes.h
+    DEPENDS ${CMAKE_SOURCE_DIR}/icons/512.png file_to_c
+)
+
 # Embed the retail->TLBFREE ROM patch so the app can convert an unmodified retail
 # NTSC-U ROM selected in the ROM picker.
 add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ge_rom_patch.c ${CMAKE_CURRENT_BINARY_DIR}/ge_rom_patch.h
@@ -230,11 +233,11 @@ set (SOURCES
     ${CMAKE_SOURCE_DIR}/src/main/register_patches.cpp
     ${CMAKE_SOURCE_DIR}/src/main/rom_conversion.cpp
     ${CMAKE_SOURCE_DIR}/src/main/libultra_tlb_stubs.c
-    ${CMAKE_SOURCE_DIR}/src/main/rt64_render_context.cpp
+    ${CMAKE_SOURCE_DIR}/src/main/launcher.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/ge_rom_patch.c
+    ${CMAKE_CURRENT_BINARY_DIR}/icon_bytes.c
 
     ${CMAKE_SOURCE_DIR}/src/game/input.cpp
-    ${CMAKE_SOURCE_DIR}/src/game/controls.cpp
     ${CMAKE_SOURCE_DIR}/src/game/mouse.cpp
     ${CMAKE_SOURCE_DIR}/src/game/config.cpp
     ${CMAKE_SOURCE_DIR}/src/game/scene_table.cpp
@@ -242,16 +245,8 @@ set (SOURCES
     ${CMAKE_SOURCE_DIR}/src/game/quicksaving.cpp
     ${CMAKE_SOURCE_DIR}/src/game/recomp_api.cpp
 
-    ${CMAKE_SOURCE_DIR}/src/ui/ui_renderer.cpp
-    ${CMAKE_SOURCE_DIR}/src/ui/ui_launcher.cpp
-    ${CMAKE_SOURCE_DIR}/src/ui/ui_config.cpp
-    ${CMAKE_SOURCE_DIR}/src/ui/ui_color_hack.cpp
-    ${CMAKE_SOURCE_DIR}/src/ui/ui_rml_hacks.cpp
-
     ${CMAKE_SOURCE_DIR}/rsp/aspMain.cpp
     #${CMAKE_SOURCE_DIR}/rsp/njpgdspMain.cpp
-
-    ${CMAKE_SOURCE_DIR}/lib/RmlUi/Backends/RmlUi_Platform_SDL.cpp
 )
 
 if (HAS_MM_SHADER_CACHE)
@@ -261,10 +256,12 @@ endif()
 target_include_directories(GoldenRecomp PRIVATE
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/N64Recomp/include
-    ${CMAKE_SOURCE_DIR}/lib/concurrentqueue
-    ${CMAKE_SOURCE_DIR}/lib/GamepadMotionHelpers
-    ${CMAKE_SOURCE_DIR}/lib/RmlUi/Include
-    ${CMAKE_SOURCE_DIR}/lib/RmlUi/Backends
+    ${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/thirdparty
+    ${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/thirdparty/concurrentqueue
+    ${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/thirdparty/sse2neon
+    ${CMAKE_SOURCE_DIR}/lib/RecompFrontend/recompinput/include
+    ${CMAKE_SOURCE_DIR}/lib/RecompFrontend/recompui/include
+    ${CMAKE_SOURCE_DIR}/lib/RecompFrontend/recompui/src
     ${CMAKE_SOURCE_DIR}/lib/rt64/src/contrib
     ${CMAKE_SOURCE_DIR}/lib/rt64/src/contrib/hlslpp/include
     ${CMAKE_SOURCE_DIR}/lib/rt64/src/contrib/plume
@@ -272,10 +269,7 @@ target_include_directories(GoldenRecomp PRIVATE
     ${CMAKE_SOURCE_DIR}/lib/rt64/src
     ${CMAKE_SOURCE_DIR}/lib/rt64/src/rhi
     ${CMAKE_SOURCE_DIR}/lib/rt64/src/render
-    ${CMAKE_SOURCE_DIR}/lib/sse2neon
-    ${CMAKE_SOURCE_DIR}/lib/freetype-windows-binaries/include
     ${CMAKE_SOURCE_DIR}/lib/rt64/src/contrib/nativefiledialog-extended/src/include
-    ${CMAKE_BINARY_DIR}/shaders
     ${CMAKE_CURRENT_BINARY_DIR}
 )
 
@@ -292,6 +286,11 @@ else()
         -fno-strict-aliasing
         -fms-extensions
     )
+endif()
+
+if (MSVC)
+    # Disable identical code folding, since this breaks mod function patching as multiple functions can get merged into one.
+    target_link_options(GoldenRecomp PRIVATE /OPT:NOICF)
 endif()
 
 if (WIN32)
@@ -343,27 +342,13 @@ endif()
 
 if (CMAKE_SYSTEM_NAME MATCHES "Linux")
     find_package(SDL2 REQUIRED)
-    find_package(X11 REQUIRED)
-
-    # Generate icon_bytes.c from the app icon PNG.
-    add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/icon_bytes.c ${CMAKE_CURRENT_BINARY_DIR}/icon_bytes.h
-        COMMAND file_to_c ${CMAKE_SOURCE_DIR}/icons/512.png icon_bytes ${CMAKE_CURRENT_BINARY_DIR}/icon_bytes.c ${CMAKE_CURRENT_BINARY_DIR}/icon_bytes.h 
-        DEPENDS ${CMAKE_SOURCE_DIR}/icons/512.png
-    )
-    target_sources(GoldenRecomp PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/icon_bytes.c)
+    add_compile_definitions("PLUME_SDL_VULKAN_ENABLED")
+    add_compile_definitions("RT64_SDL_WINDOW_VULKAN")
 
     message(STATUS "SDL2_FOUND = ${SDL2_FOUND}")
     message(STATUS "SDL2_INCLUDE_DIRS = ${SDL2_INCLUDE_DIRS}")
 
     target_include_directories(GoldenRecomp PRIVATE ${SDL2_INCLUDE_DIRS})
-
-    message(STATUS "X11_FOUND = ${X11_FOUND}")
-    message(STATUS "X11_Xrandr_FOUND = ${X11_Xrandr_FOUND}")
-    message(STATUS "X11_INCLUDE_DIR = ${X11_INCLUDE_DIR}")
-    message(STATUS "X11_LIBRARIES = ${X11_LIBRARIES}")
-
-    target_include_directories(GoldenRecomp PRIVATE ${X11_INCLUDE_DIR} ${X11_Xrandr_INCLUDE_PATH})
-    target_link_libraries(GoldenRecomp PRIVATE ${X11_LIBRARIES} ${X11_Xrandr_LIB})
 
     find_package(Freetype REQUIRED)
 
@@ -402,13 +387,6 @@ if (APPLE)
     find_package(SDL2 REQUIRED)
     find_package(Freetype REQUIRED)
 
-    # Generate icon_bytes.c from the app icon PNG.
-    add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/icon_bytes.c ${CMAKE_CURRENT_BINARY_DIR}/icon_bytes.h
-        COMMAND file_to_c ${CMAKE_SOURCE_DIR}/icons/512.png icon_bytes ${CMAKE_CURRENT_BINARY_DIR}/icon_bytes.c ${CMAKE_CURRENT_BINARY_DIR}/icon_bytes.h
-        DEPENDS ${CMAKE_SOURCE_DIR}/icons/512.png
-    )
-    target_sources(GoldenRecomp PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/icon_bytes.c)
-
     target_include_directories(GoldenRecomp PRIVATE ${SDL2_INCLUDE_DIRS} ${FREETYPE_INCLUDE_DIRS})
     if (TARGET SDL2::SDL2)
         target_link_libraries(GoldenRecomp PRIVATE SDL2::SDL2)
@@ -428,21 +406,8 @@ if (APPLE)
     )
 endif()
 
-target_link_libraries(GoldenRecomp PRIVATE
-    PatchesLib
-    RecompiledFuncs
-    $<$<NOT:$<PLATFORM_ID:Darwin>>:SDL2>
-    librecomp
-    ultramodern
-    rt64
-    RmlCore
-    RmlDebugger
-    nfd
-    lunasvg
-)
-
 # TODO fix the rt64 CMake script so that this doesn't need to be duplicated here
-# For DXC
+# For DXC, which builds RecompFrontend's UI shaders
 set (DXC_COMMON_OPTS "-I${PROJECT_SOURCE_DIR}/src")
 set (DXC_DXIL_OPTS "-Wno-ignored-attributes")
 set (DXC_SPV_OPTS "-spirv" "-fspv-target-env=vulkan1.0" "-fvk-use-dx-layout")
@@ -468,8 +433,22 @@ else()
     endif()
 endif()
 
-build_vertex_shader(GoldenRecomp "shaders/InterfaceVS.hlsl" "shaders/InterfaceVS.hlsl")
-build_pixel_shader(GoldenRecomp "shaders/InterfacePS.hlsl" "shaders/InterfacePS.hlsl")
+# RecompFrontend: the launcher, the settings menus, input and the RT64 render context.
+set(RECOMP_FRONTEND_N64MODERNRUNTIME_PATH ${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime)
+set(RECOMP_FRONTEND_RT64_PATH ${CMAKE_SOURCE_DIR}/lib/rt64)
+add_subdirectory(${CMAKE_SOURCE_DIR}/lib/RecompFrontend)
+
+target_link_libraries(GoldenRecomp PRIVATE
+    PatchesLib
+    RecompiledFuncs
+    $<$<NOT:$<PLATFORM_ID:Darwin>>:SDL2>
+    recompui
+    recompinput
+    librecomp
+    ultramodern
+    rt64
+    nfd
+)
 
 target_sources(GoldenRecomp PRIVATE ${SOURCES})
 
