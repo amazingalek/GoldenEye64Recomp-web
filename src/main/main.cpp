@@ -717,7 +717,9 @@ int main(int argc, char** argv) {
         .get_game_thread_name = zelda64::get_game_thread_name,
     };
 
-    recomp::Configuration cfg;
+    // {}: value-initialised. On Linux WindowHandle is a bare SDL_Window*, and an empty window_handle is what tells
+    // recomp::start to call create_window; left uninitialised it held stack garbage, used as the window.
+    recomp::Configuration cfg{};
     cfg.project_version = project_version;
     cfg.rsp_callbacks = rsp_callbacks;
     cfg.renderer_callbacks = renderer_callbacks;
